@@ -1,21 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useVoiceAgent } from "@/hooks/useVoiceAgent";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Mic, Square, Activity, BrainCircuit, AlertCircle, PhoneIncoming } from "lucide-react";
+import { Mic, Square, Activity, BrainCircuit, AlertCircle, PhoneIncoming, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import type { Business } from "@/types/database";
 
 export default function PublicCall() {
     const { slug } = useParams();
+    const [business, setBusiness] = useState<Business | null>(null);
+    const [loading, setLoading] = useState(true);
     const [isStarted, setIsStarted] = useState(false);
+    const [callId, setCallId] = useState<string | null>(null);
 
-    // For the public demo, we hardcode the Dental prompt template
+    // Fetch business details by slug
+    useEffect(() => {
+        if (!slug) return;
+        
+        async function fetchBiz() {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('businesses')
+                .select('*')
+                .eq('slug', slug)
+                .single();
+                
+            if (data) {
+                setBusiness(data as Business);
+            } else if (error) {
+                console.error("Failed to fetch business by slug:", error);
+            }
+            setLoading(false);
+        }
+        
+        fetchBiz();
+    }, [slug]);
+
     const current_time_IST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-    const systemPrompt = `You are Ratan, a friendly voice assistant for Sharmaji Dental Hub. 
-    Role: Handle inbound appointments and questions.
-    Tone: Warm and casual.
-    Current Time: ${current_time_IST}.
-    Slug context: ${slug}`;
+    
+    // Fallback if system_prompt is empty
+    const defaultPrompt = `You are ${business?.agent_name || 'Awaaz'}, a friendly voice assistant for ${business?.name}. 
+    Role: Handle inbound queries and assist callers.
+    Tone: Warm and professional.
+    Current Time: ${current_time_IST}.`;
+    
+    // We only prepare the prompt if business is loaded
+    const systemPrompt = business ? (business.system_prompt || defaultPrompt) : "";
 
     const {
         agentState,
@@ -24,6 +55,7 @@ export default function PublicCall() {
         errorMsg
     } = useVoiceAgent({
         systemPrompt,
+        businessName: business?.name,
         useCloudLLM: true,
         isContinuous: true
     });
@@ -38,9 +70,59 @@ export default function PublicCall() {
         }
     };
 
+    const handleStartCall = async () => {
+        setIsStarted(true);
+        if (business) {
+            // Log the call creation immediately
+            const { data, error } = await supabase.from('calls').insert({
+                business_id: business.id,
+                call_source: 'web',
+                outcome: 'in-progress'
+            }).select('id').single();
+            
+            if (error) {
+                console.error("Failed to insert call", error);
+            }
+            if (data) {
+                setCallId(data.id);
+            }
+        }
+    };
+
+    const handleEndCall = async () => {
+        setIsStarted(false);
+        stopAgent();
+        if (callId) {
+            await supabase.from('calls').update({
+                outcome: 'completed',
+                ended_at: new Date().toISOString()
+            }).eq('id', callId);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (!business) {
+        return (
+            <div className="min-h-screen bg-[#050505] flex items-center justify-center text-white p-4">
+                <div className="text-center space-y-4 max-w-sm">
+                    <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+                    <h1 className="text-2xl font-bold">Business Not Found</h1>
+                    <p className="text-gray-400">We couldn't find an AI voice agent registered for '{slug}'.</p>
+                </div>
+            </div>
+        );
+    }
+
     if (!isStarted) {
         return (
-            <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 font-sans">
+            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent opacity-50" />
                 <Card className="w-full max-w-md border-white/10 bg-white/5 backdrop-blur-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
@@ -49,10 +131,10 @@ export default function PublicCall() {
                             <PhoneIncoming className="h-10 w-10 text-primary" />
                         </div>
                         <div className="space-y-2">
-                            <h1 className="text-3xl font-bold tracking-tight text-white capitalize">{slug?.replace('-', ' ')}</h1>
-                            <p className="text-muted-foreground">Voice Assistant is ready to help you.</p>
+                            <h1 className="text-3xl font-bold tracking-tight text-white capitalize">{business.name}</h1>
+                            <p className="text-muted-foreground">{business.agent_name} - AI Voice Receptionist</p>
                         </div>
-                        <Button size="lg" className="w-full h-16 text-lg font-semibold rounded-2xl group shadow-2xl transition-all hover:scale-[1.02]" onClick={() => setIsStarted(true)}>
+                        <Button size="lg" className="w-full h-16 text-lg font-semibold rounded-2xl group shadow-2xl transition-all hover:scale-[1.02]" onClick={handleStartCall}>
                             <Mic className="mr-3 h-6 w-6 group-hover:scale-110 transition-transform" />
                             Start Conversation
                         </Button>
@@ -64,7 +146,7 @@ export default function PublicCall() {
     }
 
     return (
-        <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 font-sans overflow-hidden">
+        <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans overflow-hidden">
             <div className={`absolute inset-0 transition-colors duration-1000 ${agentState === 'listening' ? 'bg-green-500/5' :
                 agentState === 'thinking' ? 'bg-blue-500/5' :
                     'bg-primary/5'
@@ -95,11 +177,11 @@ export default function PublicCall() {
                         <h2 className="text-2xl font-semibold text-white">
                             {agentState === "listening" ? "Listening..." :
                                 agentState === "thinking" ? "Thinking..." :
-                                    agentState === "speaking" ? "Ratan Speaking" :
+                                    agentState === "speaking" ? `${business.agent_name} Speaking...` :
                                         "Connected"}
                         </h2>
                         <p className="text-muted-foreground text-sm uppercase tracking-widest font-medium opacity-60">
-                            Sharmaji Dental Hub
+                            {business.name}
                         </p>
                     </div>
 
@@ -115,7 +197,7 @@ export default function PublicCall() {
                         )}
                     </div>
 
-                    <Button variant="ghost" className="text-white/40 hover:text-white/60 text-sm mt-4" onClick={() => setIsStarted(false)}>
+                    <Button variant="ghost" className="text-white/40 hover:text-white/60 text-sm mt-4" onClick={handleEndCall}>
                         End Call
                     </Button>
                 </div>

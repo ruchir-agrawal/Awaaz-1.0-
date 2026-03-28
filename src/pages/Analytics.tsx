@@ -1,309 +1,187 @@
 import { useState } from "react"
-import { useDemo } from "@/contexts/DemoContext"
-import {
-    getAnalyticsCallVolume,
-    getAnalyticsConversion,
-    getAnalyticsOutcomes
-} from "@/lib/mockData"
+import { useBusinessData } from "@/hooks/useBusinessData"
+import { useCallsData } from "@/hooks/useCallsData"
+import { useAppointmentsData } from "@/hooks/useAppointmentsData"
+import { format, subDays, parseISO, isSameDay } from "date-fns"
 import { toast } from "sonner"
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle
-} from "@/components/ui/Card"
-import { Button } from "@/components/ui/Button"
-import {
-    LineChart,
-    Line,
-    BarChart,
-    Bar,
-    PieChart,
-    Pie,
-    Cell,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Legend
-} from "recharts"
-import {
-    Download,
-    Share2,
-    TrendingUp,
-    Clock,
-    Calendar,
-    Users,
-    BrainCircuit,
-    PieChart as PieChartIcon,
-    PhoneCall,
-    IndianRupee,
-    Star
-} from "lucide-react"
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { Download, Share2, Clock, Calendar, Users, BrainCircuit, PhoneCall } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+const C = {
+  gold: "#c9a227", goldLight: "rgba(201,162,39,0.1)", goldBorder: "rgba(201,162,39,0.18)",
+  terra: "#c4643a", terraLight: "rgba(196,100,58,0.1)", terraBorder: "rgba(196,100,58,0.18)",
+  text: "#f0ede8", textMuted: "rgba(240,237,232,0.4)", textGhost: "rgba(240,237,232,0.15)",
+  surface: "#0f0f0f", elevated: "#141414", border: "rgba(255,255,255,0.06)",
+}
+
+const OUTCOME_COLORS: Record<string, string> = {
+  booked: "#5c9e6e", transferred: "#c9a227", completed: "#4a7fa5",
+  failed: "#c4643a", missed: "rgba(240,237,232,0.2)", "in-progress": "#8b6fc9"
+}
+const LANG_COLORS = ["#c9a227", "#c4643a", "#4a7fa5", "#5c9e6e", "#8b6fc9"]
+
 export default function Analytics() {
-    const { isDemoMode } = useDemo()
-    const [timeRange, setTimeRange] = useState<"1" | "7" | "30">("7")
+  const { business } = useBusinessData()
+  const { calls, loading: callsLoading } = useCallsData(business?.id)
+  const { todayCount, loading: aptLoading } = useAppointmentsData(business?.id)
+  const [timeRange, setTimeRange] = useState<"7" | "30">("7")
 
-    // Fetch mock data based on the selected time range
-    const days = parseInt(timeRange)
-    const volumeData = getAnalyticsCallVolume(days)
-    const conversionData = getAnalyticsConversion(days)
-    const outcomesData = getAnalyticsOutcomes()
+  const days = parseInt(timeRange)
+  const relevantStart = subDays(new Date(), days)
+  const recentCalls = calls.filter(c => new Date(c.created_at) >= relevantStart)
+  const avgHandleSecs = recentCalls.length > 0
+    ? Math.round(recentCalls.reduce((acc, c) => acc + (c.duration_seconds || 0), 0) / recentCalls.length) : 0
 
-    const handleDownloadReport = () => {
-        toast.promise(new Promise(resolve => setTimeout(resolve, 2000)), {
-            loading: 'Generating PDF report...',
-            success: 'Report downloaded successfully!',
-            error: 'Failed to generate report'
-        })
-    }
+  const volumeData = Array.from({ length: days }).map((_, i) => {
+    const d = subDays(new Date(), days - 1 - i)
+    const dc = calls.filter(c => isSameDay(parseISO(c.created_at), d))
+    return { date: format(d, "MMM dd"), answered: dc.filter(c => c.outcome !== "missed").length, missed: dc.filter(c => c.outcome === "missed").length, total: dc.length }
+  })
 
-    const handleShareReport = () => {
-        navigator.clipboard.writeText("https://awaaz.com/analytics/shared/1a2b3c")
-        toast.success("Link copied to clipboard", {
-            description: "Anyone with this link can view a readonly version of this dashboard."
-        })
-    }
+  const outcomeCounts = recentCalls.reduce((acc, c) => { acc[c.outcome] = (acc[c.outcome] || 0) + 1; return acc }, {} as Record<string, number>)
+  const outcomesData = Object.entries(outcomeCounts).map(([k, v]) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: v, color: OUTCOME_COLORS[k] || "#888" })).filter(o => o.value > 0)
 
-    const InsightCard = ({ icon: Icon, title, description, highlight }: any) => (
-        <Card className="flex flex-row items-center gap-4 p-4 border-l-4 border-l-primary-500 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/50">
-                <Icon className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-            </div>
-            <div>
-                <h4 className="font-semibold">{title}</h4>
-                <p className="text-sm text-muted-foreground">{description}</p>
-                <span className="inline-flex mt-1 text-xs font-medium text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-950 px-2 py-0.5 rounded-md">
-                    {highlight}
-                </span>
-            </div>
-        </Card>
-    )
+  const langCounts = recentCalls.reduce((acc, c) => { const l = c.language_detected || "unknown"; acc[l] = (acc[l] || 0) + 1; return acc }, {} as Record<string, number>)
+  const languageData = Object.entries(langCounts).map(([k, v], i) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: v, color: LANG_COLORS[i % LANG_COLORS.length] })).filter(o => o.value > 0)
 
-    const ComparisonCard = ({ title, before, after, icon: Icon }: any) => (
-        <Card className="relative overflow-hidden group hover:border-primary-500/50 transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                <Icon className="h-24 w-24" />
-            </div>
-            <CardHeader className="pb-2">
-                <CardDescription className="font-medium tracking-wide uppercase text-xs">{title}</CardDescription>
-                <CardTitle className="text-2xl font-bold flex items-baseline gap-2">
-                    {after}
-                    <span className="text-sm font-normal text-success-600 dark:text-success-400 flex items-center bg-success-50 dark:bg-success-950 px-2 py-0.5 rounded-full">
-                        <TrendingUp className="h-3 w-3 mr-1" /> from {before}
-                    </span>
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10">
-                <p className="text-xs text-muted-foreground">Impact since using Awaaz AI</p>
-            </CardContent>
-        </Card>
-    )
-
+  if (callsLoading || aptLoading) {
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-8">
-            {/* Header & Controls */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Analytics & Insights</h1>
-                    <p className="text-muted-foreground">Deep dive into your AI agent's performance and ROI.</p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-                    <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 w-full sm:w-auto">
-                        {[
-                            { label: "Today", value: "1" },
-                            { label: "7 Days", value: "7" },
-                            { label: "30 Days", value: "30" }
-                        ].map(tab => (
-                            <button
-                                key={tab.value}
-                                onClick={() => setTimeRange(tab.value as any)}
-                                className={cn(
-                                    "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-                                    timeRange === tab.value
-                                        ? "bg-background text-foreground shadow"
-                                        : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
-                                )}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                        <Button variant="outline" size="sm" onClick={handleShareReport}>
-                            <Share2 className="h-4 w-4 mr-2" />
-                            Share
-                        </Button>
-                        <Button size="sm" onClick={handleDownloadReport}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Report
-                        </Button>
-                    </div>
-                </div>
-            </div>
-
-            {/* ROI Comparison Row */}
-            <div className="grid gap-4 md:grid-cols-3">
-                <ComparisonCard title="Calls Answered" before="60%" after="97%" icon={PhoneCall} />
-                <ComparisonCard title="Monthly Revenue" before="₹45k" after="₹82k" icon={IndianRupee} />
-                <ComparisonCard title="Customer Satisfaction" before="3.2/5" after="4.7/5" icon={Star} />
-            </div>
-
-            {/* AI Insights */}
-            <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <BrainCircuit className="h-5 w-5 text-primary-600" />
-                    Auto-Generated AI Insights
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <InsightCard
-                        icon={Clock}
-                        title="Peak Call Volume"
-                        description="Most callers try to reach you during late morning hours."
-                        highlight="10:00 AM - 12:00 PM (32% of total)"
-                    />
-                    <InsightCard
-                        icon={Calendar}
-                        title="Highest Booking Rate"
-                        description="Tuesdays convert inquiries into appointments significantly better."
-                        highlight="78% conversion on Tuesdays"
-                    />
-                    <InsightCard
-                        icon={Users}
-                        title="Common Reason for Visit"
-                        description="Awaaz identified a trend in customer requests this week."
-                        highlight="Tooth Cleaning & Whitening (45%)"
-                    />
-                    <InsightCard
-                        icon={PhoneCall}
-                        title="Average Conversation"
-                        description="Your AI is keeping customers engaged without wasting time."
-                        highlight="2m 15s avg duration"
-                    />
-                </div>
-            </div>
-
-            {/* Charts Grid */}
-            <div className="grid gap-6 md:grid-cols-2">
-                {/* Call Volume Chart */}
-                <Card className="col-span-1 md:col-span-2 shadow-sm animate-in slide-in-from-bottom-6 duration-700">
-                    <CardHeader>
-                        <CardTitle>Call Volume Analysis</CardTitle>
-                        <CardDescription>Hourly breakdown of calls answered by Awaaz vs. calls missed outside hours.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={volumeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                                <XAxis dataKey="time" axisLine={false} tickLine={false} dy={10} tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12 }} />
-                                <YAxis axisLine={false} tickLine={false} dx={-10} tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12 }} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-card)', backdropFilter: 'blur(8px)' }}
-                                    itemStyle={{ fontSize: '14px', fontWeight: 500 }}
-                                    labelStyle={{ color: 'var(--color-muted-foreground)', marginBottom: '8px' }}
-                                />
-                                <Legend verticalAlign="top" height={36} iconType="circle" />
-                                <Line
-                                    type="monotone"
-                                    name="Answered by AI"
-                                    dataKey="answered"
-                                    stroke="var(--color-primary-500)"
-                                    strokeWidth={3}
-                                    dot={{ r: 4, fill: 'var(--color-background)', strokeWidth: 2 }}
-                                    activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--color-primary-600)' }}
-                                />
-                                <Line
-                                    type="monotone"
-                                    name="Missed"
-                                    dataKey="missed"
-                                    stroke="var(--color-destructive)"
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
-                                    dot={{ r: 3, fill: 'var(--color-background)', strokeWidth: 2 }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                {/* Booking Conversion Bar Chart */}
-                <Card className="shadow-sm animate-in zoom-in-95 duration-500 delay-150">
-                    <CardHeader>
-                        <CardTitle>Booking Conversion</CardTitle>
-                        <CardDescription>Inquiries vs successful appointments scheduled.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={conversionData} margin={{ top: 20, right: 0, left: -20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" className="opacity-50" />
-                                <XAxis dataKey="day" axisLine={false} tickLine={false} dy={10} tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12 }} />
-                                <Tooltip
-                                    cursor={{ fill: 'var(--color-muted)', opacity: 0.4 }}
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-card)' }}
-                                />
-                                <Legend iconType="rect" />
-                                <Bar dataKey="inquiries" name="Inquiry Calls" fill="var(--color-primary-200)" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="booked" name="Booked Appts" fill="var(--color-primary-600)" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                {/* Call Outcomes Pie Chart */}
-                <Card className="shadow-sm animate-in zoom-in-95 duration-500 delay-300">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            Outcome Distribution <PieChartIcon className="h-4 w-4 text-muted-foreground" />
-                        </CardTitle>
-                        <CardDescription>How the AI agent resolved its calls.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px] flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={outcomesData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {outcomesData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value) => `${value}%`}
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--color-card)' }}
-                                    itemStyle={{ color: 'var(--color-foreground)', fontWeight: 600 }}
-                                />
-                                <Legend
-                                    layout="horizontal"
-                                    verticalAlign="bottom"
-                                    align="center"
-                                    iconType="circle"
-                                    wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {!isDemoMode && (
-                <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-warning-800 dark:border-warning-900/50 dark:bg-warning-950/20 dark:text-warning-500 text-sm">
-                    <strong>Note:</strong> You are viewing real production data which may be sparse right now. Toggle <strong>Demo Mode</strong> in the sidebar to visualize a fully loaded analytics dashboard.
-                </div>
-            )}
-        </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-10 h-10 rounded-full border-2 border-t-[#c9a227] border-white/10 animate-spin" />
+      </div>
     )
+  }
+
+  return (
+    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      {/* Header */}
+      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <p className="text-[11px] tracking-[0.25em] uppercase mb-2" style={{ color: C.textMuted }}>Owner Portal</p>
+          <h1 className="text-[2.2rem] leading-tight mb-1" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
+            Analytics
+          </h1>
+          <p className="text-[14px]" style={{ color: C.textMuted }}>Deep dive into {business?.agent_name || "your agent"}'s metrics.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Time toggle */}
+          <div className="flex rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "rgba(255,255,255,0.03)" }}>
+            {[{ label: "7 Days", value: "7" }, { label: "30 Days", value: "30" }].map(tab => (
+              <button key={tab.value} onClick={() => setTimeRange(tab.value as any)}
+                className={cn("px-4 py-2 text-[12px] font-medium transition-all", timeRange === tab.value ? "text-[#c9a227] bg-[rgba(201,162,39,0.1)]" : "")}
+                style={{ color: timeRange === tab.value ? C.gold : C.textMuted }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/call/${business?.slug}`); toast.success("Link copied") }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border text-[12px] transition-all hover:border-[rgba(201,162,39,0.3)]"
+            style={{ borderColor: C.border, color: C.textMuted, background: "rgba(255,255,255,0.03)" }}>
+            <Share2 className="w-3.5 h-3.5" /> Share
+          </button>
+          <button onClick={() => toast.promise(new Promise(r => setTimeout(r, 2000)), { loading: "Generating…", success: "Downloaded!", error: "Failed" })}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold transition-all"
+            style={{ background: C.goldLight, color: C.gold, border: `1px solid ${C.goldBorder}` }}>
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
+        </div>
+      </div>
+
+      {/* Insights row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { icon: Clock, label: "Avg Handle Time", value: avgHandleSecs > 0 ? `${Math.floor(avgHandleSecs / 60)}m ${avgHandleSecs % 60}s` : "—" },
+          { icon: Calendar, label: "Booked Today", value: `${todayCount}` },
+          { icon: Users, label: "Total Calls", value: `${recentCalls.length}` },
+          { icon: PhoneCall, label: "Successful", value: `${recentCalls.filter(c => ["booked", "transferred", "completed"].includes(c.outcome)).length}` },
+        ].map((item, i) => (
+          <div key={i} className="rounded-2xl p-5 border" style={{ background: C.surface, borderColor: C.border }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-4" style={{ background: C.goldLight }}>
+              <item.icon className="w-4 h-4" style={{ color: C.gold }} />
+            </div>
+            <div className="text-[1.5rem] font-bold tabular-nums" style={{ color: C.text }}>{item.value}</div>
+            <div className="text-[11px] mt-1" style={{ color: C.textMuted }}>{item.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts row */}
+      <div className="grid lg:grid-cols-3 gap-6 mb-6">
+        {/* Volume chart (spans 2 cols) */}
+        <div className="lg:col-span-2 rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
+          <h3 className="text-[15px] font-semibold mb-1" style={{ color: C.text }}>Call Volume</h3>
+          <p className="text-[12px] mb-6" style={{ color: C.textMuted }}>Daily answered vs missed breakdown</p>
+          <div className="h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={volumeData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: C.textMuted, fontSize: 11 }} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: C.textMuted, fontSize: 11 }} />
+                <Tooltip contentStyle={{ background: C.elevated, border: `1px solid ${C.goldBorder}`, borderRadius: 12, color: C.text, fontSize: 13 }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 11, color: C.textMuted }} />
+                <Line type="monotone" name="Answered" dataKey="answered" stroke={C.gold} strokeWidth={2} dot={{ fill: C.gold, r: 3, strokeWidth: 0 }} />
+                <Line type="monotone" name="Missed" dataKey="missed" stroke={C.terra} strokeWidth={2} dot={{ fill: C.terra, r: 3, strokeWidth: 0 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Two small pie charts stacked */}
+        <div className="flex flex-col gap-6">
+          {/* Outcomes pie */}
+          <div className="flex-1 rounded-2xl border p-5" style={{ background: C.surface, borderColor: C.border }}>
+            <h3 className="text-[14px] font-semibold mb-1" style={{ color: C.text }}>Outcomes</h3>
+            <div className="h-[160px] flex items-center justify-center">
+              {outcomesData.length === 0
+                ? <p className="text-[12px]" style={{ color: C.textGhost }}>No data yet</p>
+                : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={outcomesData} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={4} dataKey="value" stroke="none">
+                        {outcomesData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => `${v} calls`} contentStyle={{ background: C.elevated, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.text }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 10, color: C.textMuted }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )
+              }
+            </div>
+          </div>
+          {/* Languages pie */}
+          <div className="flex-1 rounded-2xl border p-5" style={{ background: C.surface, borderColor: C.border }}>
+            <h3 className="text-[14px] font-semibold mb-1" style={{ color: C.text }}>Languages</h3>
+            <div className="h-[160px] flex items-center justify-center">
+              {languageData.length === 0
+                ? <p className="text-[12px]" style={{ color: C.textGhost }}>No data yet</p>
+                : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={languageData} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={4} dataKey="value" stroke="none">
+                        {languageData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => `${v} calls`} contentStyle={{ background: C.elevated, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.text }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 10, color: C.textMuted }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {calls.length === 0 && (
+        <div className="rounded-2xl border px-6 py-5 flex items-center gap-4" style={{ background: "rgba(201,162,39,0.05)", borderColor: C.goldBorder }}>
+          <BrainCircuit className="w-5 h-5 shrink-0" style={{ color: C.gold }} />
+          <p className="text-[13px]" style={{ color: C.textMuted }}>
+            <span className="font-semibold" style={{ color: C.text }}>Fresh Start — </span>
+            Analytics will populate automatically once your agent starts handling calls. Share your voice link to begin.
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }

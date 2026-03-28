@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useVoiceAgent } from "@/hooks/useVoiceAgent"
+import { useBusinessData } from "@/hooks/useBusinessData"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Select } from "@/components/ui/Select"
@@ -15,7 +16,8 @@ import {
     X,
     Database,
     Zap,
-    MessageSquare
+    MessageSquare,
+    Sparkles
 } from "lucide-react"
 
 export default function Playground() {
@@ -26,33 +28,21 @@ export default function Playground() {
     const scrollRef = useRef<HTMLDivElement>(null)
     const isContinuous = true
 
-    // Professional Dental Prompt - Mirrors language spoken
+    // Load system prompt from Supabase business record
+    const { business, loading: businessLoading } = useBusinessData()
     const [systemPrompt, setSystemPrompt] = useState("");
 
     useEffect(() => {
-        // Generate a simple random UID for the session
-        const sessionUid = "SDH-" + Math.random().toString(36).substring(2, 6).toUpperCase();
-
-        setSystemPrompt(`Role: Shubh, a friendly and warm receptionist for Sharmaji Dental Hub, Vadodara.
-
-Tone & Personality:
-- Conversational & Flowy: Be polite, warm, and professional. Avoid being too robotic or overly short. Sound like a helpful human assistant.
-- Hinglish: Mix Hindi and English naturally. Use standard English for dental terms and professional greetings.
-- Acknowledgments: Use phrases like "Theek hai, sure!", "Ji, bilkul", "Got it, note kar liya".
-
-Language & Numbers (STRICT):
-- MIRROR: Use English digits/times ALWAYS (e.g. "931 368", "10 AM"). NEVER translate them to Hindi.
-- SYMBOLS: Read digits with spaces. Never say "minus" for "-".
-
-GOOGLE ACTIONS:
-- [UID]: Your private session ID is ${sessionUid}. NEVER speak this ID.
-- [LOG]: Trigger [[ACTION: log_call | uid: ${sessionUid} | name: ... | phone: ... | reason: ...]] when you have gathered basic patient details.
-- [BOOK]: Trigger [[ACTION: book_appointment | uid: ${sessionUid} | name: ... | phone: ... | date: ... | reason: ...]] at the end when the appointment is confirmed.
-
-Booking Order: 1. Name -> 2. Phone -> 3. New/Returning -> 4. Reason -> 5. Finalize Slot.
-
-Goal: Make the patient feel comfortable while efficiently handling their request.`);
-    }, []);
+        if (business?.system_prompt) {
+            // Inject a fresh session UID into the stored prompt
+            const sessionUid = (business.slug?.toUpperCase() || "AWZ") + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+            // Replace placeholder {{SESSION_UID}} if present, otherwise append the UID context
+            const promptWithUid = business.system_prompt.includes("{{SESSION_UID}}")
+                ? business.system_prompt.replace(/{{SESSION_UID}}/g, sessionUid)
+                : business.system_prompt + `\n\n[SESSION]: Your private session ID is ${sessionUid}. NEVER speak this ID aloud. Use it in all [[ACTION:...]] triggers.`;
+            setSystemPrompt(promptWithUid);
+        }
+    }, [business]);
 
     const {
         agentState,
@@ -63,6 +53,7 @@ Goal: Make the patient feel comfortable while efficiently handling their request
         clearHistory
     } = useVoiceAgent({
         systemPrompt,
+        businessName: business?.name,
         model,
         useCloudLLM,
         isContinuous,
@@ -87,6 +78,8 @@ Goal: Make the patient feel comfortable while efficiently handling their request
         }
     }
 
+    const agentDisplayName = business?.agent_name?.toUpperCase() || "AWAAZ"
+
     return (
         <div className="h-full lg:h-[calc(100vh-8rem)] flex flex-col max-w-[1600px] mx-auto px-4 relative overflow-hidden">
             {/* Zen Glow Background */}
@@ -95,10 +88,21 @@ Goal: Make the patient feel comfortable while efficiently handling their request
                     'from-primary/10'
                 } via-transparent to-transparent`} />
 
+            {/* No System Prompt Warning */}
+            {!businessLoading && !business?.system_prompt && (
+                <div className="shrink-0 mx-2 mt-3 mb-1 flex items-center gap-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-3.5 animate-in fade-in duration-500">
+                    <Sparkles className="h-5 w-5 text-amber-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black text-amber-500 uppercase tracking-wider">AI Prompt Not Configured</p>
+                        <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">Paste your Claude-generated master prompt in <span className="font-bold text-foreground">Dashboard → Business Settings → AI Agent Prompt</span></p>
+                    </div>
+                </div>
+            )}
+
             {/* Header / Config Bar */}
             <div className="flex justify-between items-center py-4 lg:py-4 shrink-0 px-2">
                 <div className="flex items-center gap-4">
-                    <h1 className="text-xl lg:text-2xl font-black tracking-tighter text-foreground/90">SHUBH<span className="text-primary">.AI</span></h1>
+                    <h1 className="text-xl lg:text-2xl font-black tracking-tighter text-foreground/90">{agentDisplayName}<span className="text-primary">.AI</span></h1>
                     <div className="flex items-center gap-2 bg-muted/40 px-3 py-1 rounded-full border border-border/50">
                         <div className={`h-2 w-2 rounded-full ${agentState !== 'idle' ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

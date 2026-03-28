@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Server files (excluded from repo)
+call.js
+server.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,9 +1,15 @@
 import { Navigate } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-    const { session, loading } = useAuth()
+interface ProtectedRouteProps {
+    children: React.ReactNode
+    requiredRole?: 'admin' | 'owner'
+}
 
+export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+    const { session, loading, userRole, profile } = useAuth()
+
+    // Wait until initial session and profile are resolved
     if (loading) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -14,6 +20,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     if (!session) {
         return <Navigate to="/login" replace />
+    }
+
+    if (requiredRole) {
+        if (requiredRole === 'admin' && userRole === 'owner') {
+            return <Navigate to="/owner" replace />
+        }
+        if (requiredRole === 'owner' && userRole === 'admin') {
+            return <Navigate to="/admin" replace />
+        }
     }
 
     return <>{children}</>
