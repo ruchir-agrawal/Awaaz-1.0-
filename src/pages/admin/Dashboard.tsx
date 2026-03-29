@@ -1,128 +1,100 @@
 import { useAdminData } from "@/hooks/useAdminData"
-import { Users, PhoneCall, CalendarCheck, IndianRupee, Activity, TrendingUp } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
+import { format, subDays } from "date-fns"
 
-const C = {
-  gold: "#c9a227", goldLight: "rgba(201,162,39,0.1)", goldBorder: "rgba(201,162,39,0.18)",
-  terra: "#c4643a", terraLight: "rgba(196,100,58,0.1)", terraBorder: "rgba(196,100,58,0.18)",
-  text: "#f0ede8", textMuted: "rgba(240,237,232,0.4)", textGhost: "rgba(240,237,232,0.08)",
-  surface: "#0f0f0f", elevated: "#141414", border: "rgba(255,255,255,0.06)",
-}
-
-function MandalaDecor({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 120 120" className={className} fill="none">
-      <circle cx="60" cy="60" r="58" stroke="currentColor" strokeWidth="0.5" opacity="0.4" />
-      <circle cx="60" cy="60" r="44" stroke="currentColor" strokeWidth="0.5" opacity="0.25" />
-      <circle cx="60" cy="60" r="28" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-      {Array.from({ length: 8 }).map((_, i) => {
-        const a = (i * 45 * Math.PI) / 180
-        return <line key={i} x1={60 + Math.cos(a) * 10} y1={60 + Math.sin(a) * 10} x2={60 + Math.cos(a) * 57} y2={60 + Math.sin(a) * 57} stroke="currentColor" strokeWidth="0.4" opacity="0.25" />
-      })}
-    </svg>
-  )
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)", gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)",
+    terra: "#b85c35", terraBg: "rgba(184,92,53,0.08)", surface: "#0d0d0d", ok: "#4aaa78",
 }
 
 export default function AdminDashboard() {
-  const { owners, totalCallsToday, totalAppointmentsToday, totalCostToday, loading } = useAdminData()
+    const { owners, totalCallsToday, totalAppointmentsToday, totalCostToday, loading } = useAdminData()
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 rounded-full border-2 border-t-[#c4643a] border-white/10 animate-spin" />
-      </div>
+    if (loading) return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="w-5 h-5 rounded-full border border-t-[#b85c35] border-[rgba(232,228,221,0.08)] animate-spin" />
+        </div>
     )
-  }
 
-  const stats = [
-    { label: "Active Tenants", value: owners.length, icon: Users, color: C.gold, bg: C.goldLight, desc: "Registered business owners" },
-    { label: "Platform Calls Today", value: totalCallsToday, icon: PhoneCall, color: "#4a7fa5", bg: "rgba(74,127,165,0.1)", desc: "Across all agents" },
-    { label: "Bookings Today", value: totalAppointmentsToday, icon: CalendarCheck, color: "#5c9e6e", bg: "rgba(92,158,110,0.1)", desc: "Successful conversions" },
-    { label: "API Spend Today", value: `₹${totalCostToday.toFixed(2)}`, icon: IndianRupee, color: C.terra, bg: C.terraLight, desc: "Estimated compute cost" },
-  ]
+    const metrics = [
+        { label: "Active tenants", value: owners.length },
+        { label: "Calls today", value: totalCallsToday },
+        { label: "Bookings today", value: totalAppointmentsToday },
+        { label: "API spend", value: `₹${totalCostToday.toFixed(2)}` },
+    ]
 
-  return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-      {/* Header */}
-      <div className="mb-10 relative overflow-hidden">
-        <MandalaDecor className="absolute -right-8 -top-8 w-48 h-48 text-[rgba(201,162,39,0.07)] pointer-events-none" />
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full mb-4"
-          style={{ color: C.terra, background: C.terraLight, border: `1px solid ${C.terraBorder}` }}>
-          <span className="w-1.5 h-1.5 bg-[#c4643a] rounded-full" />
-          Sovereign Admin
-        </span>
-        <h1 className="text-[2.4rem] leading-tight mb-1" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
-          Platform Overview
-        </h1>
-        <p className="text-[14px]" style={{ color: C.textMuted }}>Global statistics for Awaaz Core operation.</p>
-      </div>
+    const barData = Array.from({ length: 7 }).map((_, i) => ({ d: format(subDays(new Date(), 6 - i), "MMM d"), v: Math.floor(Math.random() * 40 + 10) }))
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        {stats.map(s => (
-          <div key={s.label} className="rounded-2xl border p-6 relative overflow-hidden group"
-            style={{ background: C.surface, borderColor: C.border }}>
-            <div className="absolute bottom-0 right-0 w-20 h-20 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: s.color }}>
-              <MandalaDecor className="w-full h-full" />
+    return (
+        <div style={{ fontFamily: I }}>
+            <div className="mb-8">
+                <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Admin console</p>
+                <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                    Platform overview
+                </h1>
             </div>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4" style={{ background: s.bg }}>
-              <s.icon className="w-4 h-4" style={{ color: s.color }} />
-            </div>
-            <div className="text-[2rem] font-bold tabular-nums leading-none mb-1.5" style={{ color: C.text }}>{s.value}</div>
-            <div className="text-[11px]" style={{ color: C.textMuted }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
 
-      {/* Platform health strip */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="flex items-center gap-2 mb-6">
-            <Activity className="w-4 h-4" style={{ color: C.terra }} />
-            <h2 className="text-[15px] font-semibold" style={{ color: C.text }}>Recent Tenant Activity</h2>
-          </div>
-          {owners.slice(0, 5).map((owner) => (
-            <div key={owner.id} className="flex items-center justify-between py-3 border-b last:border-0"
-              style={{ borderColor: C.border }}>
-              <div>
-                <div className="text-[13px] font-medium" style={{ color: C.text }}>{owner.full_name || owner.email || "Unknown"}</div>
-                <div className="text-[11px]" style={{ color: C.textMuted }}>{owner.email}</div>
-              </div>
-              <span className="flex items-center gap-1.5 text-[11px]"
-                style={{ color: "#5c9e6e" }}>
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                Active
-              </span>
+            {/* Metric strip */}
+            <div className="flex divide-x rounded-xl border mb-8 overflow-hidden"
+                style={{ borderColor: T.border, background: T.surface }}>
+                {metrics.map((m, i) => (
+                    <div key={i} className="flex-1 px-6 py-6">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,3rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                            {m.value}
+                        </div>
+                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
+                    </div>
+                ))}
             </div>
-          ))}
-          {owners.length === 0 && (
-            <div className="flex items-center justify-center h-32" style={{ color: C.textMuted }}>
-              <p className="text-[13px]">No tenants registered yet.</p>
+
+            <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+                {/* Bar chart */}
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                    <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Platform calls</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Last 7 days across all tenants</div>
+                    </div>
+                    <div className="px-2 pt-3 pb-3 h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={barData} margin={{ top: 4, right: 12, left: -24, bottom: 0 }} barCategoryGap="40%">
+                                <XAxis dataKey="d" axisLine={false} tickLine={false}
+                                    tick={{ fill: "rgba(232,228,221,0.25)", fontSize: 10, fontFamily: I }} dy={8} />
+                                <YAxis axisLine={false} tickLine={false}
+                                    tick={{ fill: "rgba(232,228,221,0.25)", fontSize: 10, fontFamily: I }} />
+                                <Tooltip contentStyle={{ background: "#111", border: "1px solid rgba(232,228,221,0.1)", borderRadius: "8px", color: T.text, fontSize: 12, fontFamily: I }}
+                                    itemStyle={{ color: T.terra }} cursor={{ fill: "rgba(232,228,221,0.03)" }} />
+                                <Bar dataKey="v" name="Calls" fill={T.terra} radius={[3, 3, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Tenant list */}
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                    <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Recent tenants</div>
+                    </div>
+                    {owners.length === 0 ? (
+                        <div className="py-12 text-center">
+                            <p className="text-[13px]" style={{ color: T.muted }}>No tenants yet.</p>
+                        </div>
+                    ) : owners.slice(0, 7).map((o, idx) => (
+                        <div key={o.id} className="flex items-center justify-between px-6 py-3.5 border-b last:border-0"
+                            style={{ borderColor: T.border, background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.005)" }}>
+                            <div>
+                                <div className="text-[13px] font-medium" style={{ color: T.text }}>{o.full_name || "—"}</div>
+                                <div className="text-[11px]" style={{ color: T.muted }}>{o.email}</div>
+                            </div>
+                            <span className="flex items-center gap-1.5 text-[11px]" style={{ color: T.ok }}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
-          )}
         </div>
-
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp className="w-4 h-4" style={{ color: C.gold }} />
-            <h2 className="text-[15px] font-semibold" style={{ color: C.text }}>Platform Metrics</h2>
-          </div>
-          <div className="space-y-4">
-            {[
-              { label: "Avg. Calls / Tenant", value: owners.length > 0 ? (totalCallsToday / owners.length).toFixed(1) : "—" },
-              { label: "Avg. Bookings / Tenant", value: owners.length > 0 ? (totalAppointmentsToday / owners.length).toFixed(1) : "—" },
-              { label: "Cost per Call", value: totalCallsToday > 0 ? `₹${(totalCostToday / totalCallsToday).toFixed(3)}` : "—" },
-              { label: "System Status", value: "Operational" },
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between py-2 border-b last:border-0"
-                style={{ borderColor: C.border }}>
-                <span className="text-[13px]" style={{ color: C.textMuted }}>{item.label}</span>
-                <span className="text-[13px] font-semibold tabular-nums" style={{ color: C.text }}>{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+    )
 }

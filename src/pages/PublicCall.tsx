@@ -17,7 +17,7 @@ export default function PublicCall() {
     // Fetch business details by slug
     useEffect(() => {
         if (!slug) return;
-        
+
         async function fetchBiz() {
             setLoading(true);
             const { data, error } = await supabase
@@ -25,7 +25,7 @@ export default function PublicCall() {
                 .select('*')
                 .eq('slug', slug)
                 .single();
-                
+
             if (data) {
                 setBusiness(data as Business);
             } else if (error) {
@@ -33,20 +33,66 @@ export default function PublicCall() {
             }
             setLoading(false);
         }
-        
+
         fetchBiz();
     }, [slug]);
 
     const current_time_IST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-    
+
     // Fallback if system_prompt is empty
     const defaultPrompt = `You are ${business?.agent_name || 'Awaaz'}, a friendly voice assistant for ${business?.name}. 
     Role: Handle inbound queries and assist callers.
     Tone: Warm and professional.
     Current Time: ${current_time_IST}.`;
-    
-    // We only prepare the prompt if business is loaded
-    const systemPrompt = business ? (business.system_prompt || defaultPrompt) : "";
+
+    const [systemPrompt, setSystemPrompt] = useState("");
+
+    // Fetch existing appointments and inject into prompt
+    useEffect(() => {
+        if (!business) return;
+
+        const initPrompt = async () => {
+            const sessionUid = (business.slug?.toUpperCase() || "AWZ") + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+            const nowIST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: true, hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+
+            let basePrompt = business.system_prompt || defaultPrompt;
+
+            // Inject Variables
+            basePrompt = basePrompt.replace(/{{SESSION_UID}}/g, sessionUid);
+            basePrompt = basePrompt.replace(/{{current_time_IST}}/g, nowIST);
+            basePrompt = basePrompt.replace(/{{user_number}}/g, "Unknown");
+
+            // Append Technical Guide for Actions
+            basePrompt += `\n\n[TECHNICAL INSTRUCTIONS]:
+To trigger the functions mentioned in your prompt, you MUST use this exact syntax:
+- For Availability: [[ACTION: check_calendar_availability | reason: <reason>]]
+- For Booking: [[ACTION: book_appointment | patient_name: <name> | phone_number: <phone> | appointment_datetime: <datetime> | service_reason: <service> | new_or_returning: <status>]]
+- For Logging (End of call): [[ACTION: log_call_data | session_uid: ${sessionUid} | patient_name: <name> | phone_number: <phone> | new_or_returning: <status> | service_reason: <reason> | appointment_datetime: <datetime>]]
+- For Transfer: [[ACTION: transfer_call | reason: <reason>]]
+
+IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
+
+            const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL;
+            if (bridgeUrl && business.name) {
+                try {
+                    const res = await fetch(`${bridgeUrl}?businessName=${encodeURIComponent(business.name)}`);
+                    const json = await res.json();
+                    if (json.status === 'ok' && json.appointments && json.appointments.length > 0) {
+                        const apptLines = json.appointments.map((a: any) =>
+                            `- ${a.callTime}: ${a.patientName} (${a.mobile}) — ${a.reason} — Status: ${a.status}`
+                        ).join('\n');
+                        basePrompt += `\n\n[EXISTING APPOINTMENTS — DO NOT DOUBLE BOOK THESE SLOTS]:\n${apptLines}\n\nIMPORTANT: Before booking any new appointment, check the above list. If a requested time slot already has a confirmed appointment, inform the caller that the slot is taken and suggest the next available time.`;
+                    }
+                } catch (err) {
+                    console.warn("Could not fetch existing appointments for context:", err);
+                }
+            }
+
+            setSystemPrompt(basePrompt);
+        };
+
+        initPrompt();
+    }, [business]);
 
     const {
         agentState,
@@ -79,7 +125,7 @@ export default function PublicCall() {
                 call_source: 'web',
                 outcome: 'in-progress'
             }).select('id').single();
-            
+
             if (error) {
                 console.error("Failed to insert call", error);
             }

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, Navigate } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
-import { Loader2, ArrowRight, Check } from "lucide-react"
+import { Loader2, ArrowRight, Check, ArrowLeft } from "lucide-react"
 
 function MandalaDecor({ className }: { className?: string }) {
     return (
@@ -165,6 +165,13 @@ export default function SignUp() {
                 <MandalaDecor className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] text-white/[0.03] pointer-events-none select-none" />
 
                 <div className="relative z-10 w-full max-w-[380px] py-12">
+                    {/* Back to Landing */}
+                    <Link to="/"
+                        className="inline-flex items-center gap-1.5 text-[12px] text-white/25 hover:text-white/50 transition-colors mb-8 group">
+                        <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                        Back to Home
+                    </Link>
+
                     {/* Top brand title */}
                     <div className="mb-10">
                         <h2 className="text-[2.8rem] text-white leading-none tracking-tight"

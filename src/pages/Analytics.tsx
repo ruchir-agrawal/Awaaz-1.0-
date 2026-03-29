@@ -4,184 +4,191 @@ import { useCallsData } from "@/hooks/useCallsData"
 import { useAppointmentsData } from "@/hooks/useAppointmentsData"
 import { format, subDays, parseISO, isSameDay } from "date-fns"
 import { toast } from "sonner"
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
-import { Download, Share2, Clock, Calendar, Users, BrainCircuit, PhoneCall } from "lucide-react"
+import { AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
+import { Download, Share2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const C = {
-  gold: "#c9a227", goldLight: "rgba(201,162,39,0.1)", goldBorder: "rgba(201,162,39,0.18)",
-  terra: "#c4643a", terraLight: "rgba(196,100,58,0.1)", terraBorder: "rgba(196,100,58,0.18)",
-  text: "#f0ede8", textMuted: "rgba(240,237,232,0.4)", textGhost: "rgba(240,237,232,0.15)",
-  surface: "#0f0f0f", elevated: "#141414", border: "rgba(255,255,255,0.06)",
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.12)",
+    border: "rgba(232,228,221,0.07)", borderStrong: "rgba(232,228,221,0.12)",
+    gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)", surface: "#0d0d0d",
+    ok: "#4aaa78", ng: "#b85c35",
 }
 
-const OUTCOME_COLORS: Record<string, string> = {
-  booked: "#5c9e6e", transferred: "#c9a227", completed: "#4a7fa5",
-  failed: "#c4643a", missed: "rgba(240,237,232,0.2)", "in-progress": "#8b6fc9"
+const PIE_COLORS: Record<string, string> = {
+    booked: "#4aaa78", transferred: "#c8a034", completed: "#4a7fa5",
+    failed: "#b85c35", missed: "rgba(232,228,221,0.15)", "in-progress": "#c8a034"
 }
-const LANG_COLORS = ["#c9a227", "#c4643a", "#4a7fa5", "#5c9e6e", "#8b6fc9"]
+const LANG_COLORS = ["#c8a034", "#b85c35", "#4a7fa5", "#4aaa78", "#8b6fd0"]
 
 export default function Analytics() {
-  const { business } = useBusinessData()
-  const { calls, loading: callsLoading } = useCallsData(business?.id)
-  const { todayCount, loading: aptLoading } = useAppointmentsData(business?.id)
-  const [timeRange, setTimeRange] = useState<"7" | "30">("7")
+    const { business } = useBusinessData()
+    const { calls, loading: cl } = useCallsData(business?.id)
+    const { todayCount, loading: al } = useAppointmentsData(business?.id)
+    const [range, setRange] = useState<"7" | "30">("7")
 
-  const days = parseInt(timeRange)
-  const relevantStart = subDays(new Date(), days)
-  const recentCalls = calls.filter(c => new Date(c.created_at) >= relevantStart)
-  const avgHandleSecs = recentCalls.length > 0
-    ? Math.round(recentCalls.reduce((acc, c) => acc + (c.duration_seconds || 0), 0) / recentCalls.length) : 0
+    const days = parseInt(range)
+    const start = subDays(new Date(), days)
+    const recent = calls.filter(c => new Date(c.created_at) >= start)
 
-  const volumeData = Array.from({ length: days }).map((_, i) => {
-    const d = subDays(new Date(), days - 1 - i)
-    const dc = calls.filter(c => isSameDay(parseISO(c.created_at), d))
-    return { date: format(d, "MMM dd"), answered: dc.filter(c => c.outcome !== "missed").length, missed: dc.filter(c => c.outcome === "missed").length, total: dc.length }
-  })
+    const avgSecs = recent.length > 0
+        ? Math.round(recent.reduce((a, c) => a + (c.duration_seconds || 0), 0) / recent.length) : 0
 
-  const outcomeCounts = recentCalls.reduce((acc, c) => { acc[c.outcome] = (acc[c.outcome] || 0) + 1; return acc }, {} as Record<string, number>)
-  const outcomesData = Object.entries(outcomeCounts).map(([k, v]) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: v, color: OUTCOME_COLORS[k] || "#888" })).filter(o => o.value > 0)
+    const volumeData = Array.from({ length: days }).map((_, i) => {
+        const d = subDays(new Date(), days - 1 - i)
+        const dc = calls.filter(c => isSameDay(parseISO(c.created_at), d))
+        return { d: format(d, "MMM d"), total: dc.length, missed: dc.filter(c => c.outcome === "missed").length }
+    })
 
-  const langCounts = recentCalls.reduce((acc, c) => { const l = c.language_detected || "unknown"; acc[l] = (acc[l] || 0) + 1; return acc }, {} as Record<string, number>)
-  const languageData = Object.entries(langCounts).map(([k, v], i) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: v, color: LANG_COLORS[i % LANG_COLORS.length] })).filter(o => o.value > 0)
+    const outcomes = Object.entries(
+        recent.reduce((a, c) => { a[c.outcome] = (a[c.outcome] || 0) + 1; return a }, {} as Record<string, number>)
+    ).map(([k, v]) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: v, fill: PIE_COLORS[k] || "#888" }))
 
-  if (callsLoading || aptLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 rounded-full border-2 border-t-[#c9a227] border-white/10 animate-spin" />
-      </div>
+    const langs = Object.entries(
+        recent.reduce((a, c) => { const l = c.language_detected || "unknown"; a[l] = (a[l] || 0) + 1; return a }, {} as Record<string, number>)
+    ).map(([k, v], i) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: v, fill: LANG_COLORS[i % LANG_COLORS.length] }))
+
+    if (cl || al) return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="w-5 h-5 rounded-full border border-t-[#c8a034] border-[rgba(232,228,221,0.08)] animate-spin" />
+        </div>
     )
-  }
 
-  return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-      {/* Header */}
-      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <p className="text-[11px] tracking-[0.25em] uppercase mb-2" style={{ color: C.textMuted }}>Owner Portal</p>
-          <h1 className="text-[2.2rem] leading-tight mb-1" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
-            Analytics
-          </h1>
-          <p className="text-[14px]" style={{ color: C.textMuted }}>Deep dive into {business?.agent_name || "your agent"}'s metrics.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Time toggle */}
-          <div className="flex rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "rgba(255,255,255,0.03)" }}>
-            {[{ label: "7 Days", value: "7" }, { label: "30 Days", value: "30" }].map(tab => (
-              <button key={tab.value} onClick={() => setTimeRange(tab.value as any)}
-                className={cn("px-4 py-2 text-[12px] font-medium transition-all", timeRange === tab.value ? "text-[#c9a227] bg-[rgba(201,162,39,0.1)]" : "")}
-                style={{ color: timeRange === tab.value ? C.gold : C.textMuted }}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/call/${business?.slug}`); toast.success("Link copied") }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border text-[12px] transition-all hover:border-[rgba(201,162,39,0.3)]"
-            style={{ borderColor: C.border, color: C.textMuted, background: "rgba(255,255,255,0.03)" }}>
-            <Share2 className="w-3.5 h-3.5" /> Share
-          </button>
-          <button onClick={() => toast.promise(new Promise(r => setTimeout(r, 2000)), { loading: "Generating…", success: "Downloaded!", error: "Failed" })}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold transition-all"
-            style={{ background: C.goldLight, color: C.gold, border: `1px solid ${C.goldBorder}` }}>
-            <Download className="w-3.5 h-3.5" /> Export
-          </button>
-        </div>
-      </div>
+    const insightMetrics = [
+        { label: "Avg handle time", value: avgSecs > 0 ? `${Math.floor(avgSecs / 60)}m ${avgSecs % 60}s` : "—" },
+        { label: "Total interactions", value: recent.length },
+        { label: "Bookings today", value: todayCount },
+        { label: "Resolved", value: recent.filter(c => ["booked", "transferred", "completed"].includes(c.outcome)).length },
+    ]
 
-      {/* Insights row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { icon: Clock, label: "Avg Handle Time", value: avgHandleSecs > 0 ? `${Math.floor(avgHandleSecs / 60)}m ${avgHandleSecs % 60}s` : "—" },
-          { icon: Calendar, label: "Booked Today", value: `${todayCount}` },
-          { icon: Users, label: "Total Calls", value: `${recentCalls.length}` },
-          { icon: PhoneCall, label: "Successful", value: `${recentCalls.filter(c => ["booked", "transferred", "completed"].includes(c.outcome)).length}` },
-        ].map((item, i) => (
-          <div key={i} className="rounded-2xl p-5 border" style={{ background: C.surface, borderColor: C.border }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-4" style={{ background: C.goldLight }}>
-              <item.icon className="w-4 h-4" style={{ color: C.gold }} />
+    const tooltipStyle = {
+        background: "#111", border: "1px solid rgba(232,228,221,0.1)",
+        borderRadius: "8px", color: T.text, fontSize: 12, fontFamily: I
+    }
+
+    return (
+        <div style={{ fontFamily: I }}>
+            {/* Header */}
+            <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+                <div>
+                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Analytics</p>
+                    <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                        {business?.agent_name ?? "Agent"} Insights
+                    </h1>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: T.border }}>
+                        {["7", "30"].map(v => (
+                            <button key={v} onClick={() => setRange(v as any)}
+                                className="px-4 py-2 text-[12px] font-medium transition-all"
+                                style={{ background: range === v ? "rgba(200,160,52,0.1)" : "transparent", color: range === v ? T.gold : T.muted, fontFamily: I }}>
+                                {v}d
+                            </button>
+                        ))}
+                    </div>
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/call/${business?.slug}`); toast.success("Link copied") }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] transition-all border"
+                        style={{ borderColor: T.border, color: T.muted, fontFamily: I }}>
+                        <Share2 className="w-3.5 h-3.5" /> Share
+                    </button>
+                    <button onClick={() => toast.promise(new Promise(r => setTimeout(r, 1500)), { loading: "Generating…", success: "Downloaded!", error: "Failed" })}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium transition-all"
+                        style={{ background: T.goldBg, color: T.gold, border: "1px solid rgba(200,160,52,0.2)", fontFamily: I }}>
+                        <Download className="w-3.5 h-3.5" /> Export
+                    </button>
+                </div>
             </div>
-            <div className="text-[1.5rem] font-bold tabular-nums" style={{ color: C.text }}>{item.value}</div>
-            <div className="text-[11px] mt-1" style={{ color: C.textMuted }}>{item.label}</div>
-          </div>
-        ))}
-      </div>
 
-      {/* Charts row */}
-      <div className="grid lg:grid-cols-3 gap-6 mb-6">
-        {/* Volume chart (spans 2 cols) */}
-        <div className="lg:col-span-2 rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <h3 className="text-[15px] font-semibold mb-1" style={{ color: C.text }}>Call Volume</h3>
-          <p className="text-[12px] mb-6" style={{ color: C.textMuted }}>Daily answered vs missed breakdown</p>
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={volumeData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: C.textMuted, fontSize: 11 }} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: C.textMuted, fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: C.elevated, border: `1px solid ${C.goldBorder}`, borderRadius: 12, color: C.text, fontSize: 13 }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 11, color: C.textMuted }} />
-                <Line type="monotone" name="Answered" dataKey="answered" stroke={C.gold} strokeWidth={2} dot={{ fill: C.gold, r: 3, strokeWidth: 0 }} />
-                <Line type="monotone" name="Missed" dataKey="missed" stroke={C.terra} strokeWidth={2} dot={{ fill: C.terra, r: 3, strokeWidth: 0 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Two small pie charts stacked */}
-        <div className="flex flex-col gap-6">
-          {/* Outcomes pie */}
-          <div className="flex-1 rounded-2xl border p-5" style={{ background: C.surface, borderColor: C.border }}>
-            <h3 className="text-[14px] font-semibold mb-1" style={{ color: C.text }}>Outcomes</h3>
-            <div className="h-[160px] flex items-center justify-center">
-              {outcomesData.length === 0
-                ? <p className="text-[12px]" style={{ color: C.textGhost }}>No data yet</p>
-                : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={outcomesData} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={4} dataKey="value" stroke="none">
-                        {outcomesData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip formatter={(v) => `${v} calls`} contentStyle={{ background: C.elevated, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.text }} />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: 10, color: C.textMuted }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )
-              }
+            {/* Insight metric strip */}
+            <div className="flex divide-x rounded-xl border mb-8 overflow-hidden"
+                style={{ borderColor: T.border, background: T.surface }}>
+                {insightMetrics.map((m, i) => (
+                    <div key={i} className="flex-1 px-6 py-5">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "2rem", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                            {m.value}
+                        </div>
+                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
+                    </div>
+                ))}
             </div>
-          </div>
-          {/* Languages pie */}
-          <div className="flex-1 rounded-2xl border p-5" style={{ background: C.surface, borderColor: C.border }}>
-            <h3 className="text-[14px] font-semibold mb-1" style={{ color: C.text }}>Languages</h3>
-            <div className="h-[160px] flex items-center justify-center">
-              {languageData.length === 0
-                ? <p className="text-[12px]" style={{ color: C.textGhost }}>No data yet</p>
-                : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={languageData} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={4} dataKey="value" stroke="none">
-                        {languageData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip formatter={(v) => `${v} calls`} contentStyle={{ background: C.elevated, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.text }} />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: 10, color: C.textMuted }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )
-              }
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Empty state */}
-      {calls.length === 0 && (
-        <div className="rounded-2xl border px-6 py-5 flex items-center gap-4" style={{ background: "rgba(201,162,39,0.05)", borderColor: C.goldBorder }}>
-          <BrainCircuit className="w-5 h-5 shrink-0" style={{ color: C.gold }} />
-          <p className="text-[13px]" style={{ color: C.textMuted }}>
-            <span className="font-semibold" style={{ color: C.text }}>Fresh Start — </span>
-            Analytics will populate automatically once your agent starts handling calls. Share your voice link to begin.
-          </p>
+            {/* Main chart */}
+            <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: T.border, background: T.surface }}>
+                <div className="px-6 pt-6 pb-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
+                    <div>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Call volume</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Total calls per day over {range} days</div>
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px]" style={{ color: T.muted }}>
+                        <span className="flex items-center gap-1.5"><span className="w-4 h-px inline-block" style={{ background: T.gold }} /> Total</span>
+                        <span className="flex items-center gap-1.5"><span className="w-4 h-px inline-block" style={{ background: "#b85c35" }} /> Missed</span>
+                    </div>
+                </div>
+                <div className="px-2 pt-2 pb-4 h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={volumeData} margin={{ top: 8, right: 16, left: -24, bottom: 0 }}>
+                            <XAxis dataKey="d" axisLine={false} tickLine={false}
+                                tick={{ fill: "rgba(232,228,221,0.25)", fontSize: 10, fontFamily: I }} dy={8} />
+                            <YAxis axisLine={false} tickLine={false}
+                                tick={{ fill: "rgba(232,228,221,0.25)", fontSize: 10, fontFamily: I }} />
+                            <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: "rgba(232,228,221,0.06)" }} />
+                            <Line type="monotone" dataKey="total" name="Total" stroke={T.gold} strokeWidth={1.5}
+                                dot={false} activeDot={{ r: 3, fill: T.gold, strokeWidth: 0 }} />
+                            <Line type="monotone" dataKey="missed" name="Missed" stroke="#b85c35" strokeWidth={1.5}
+                                dot={false} activeDot={{ r: 3, fill: "#b85c35", strokeWidth: 0 }} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Two pies side by side */}
+            <div className="grid md:grid-cols-2 gap-6">
+                {[
+                    { title: "Outcome breakdown", data: outcomes, empty: "No call data yet" },
+                    { title: "Language distribution", data: langs, empty: "No language data yet" },
+                ].map(section => (
+                    <div key={section.title} className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                        <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
+                            <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>{section.title}</div>
+                        </div>
+                        <div className="p-4">
+                            {section.data.length === 0 ? (
+                                <div className="h-[180px] flex items-center justify-center">
+                                    <p className="text-[13px]" style={{ color: T.muted }}>{section.empty}</p>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-shrink-0 h-[180px] w-[180px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie data={section.data} cx="50%" cy="50%" innerRadius={48} outerRadius={72}
+                                                    paddingAngle={3} dataKey="value" stroke="none">
+                                                    {section.data.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                                                </Pie>
+                                                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${v} calls`} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="flex-1 space-y-2">
+                                        {section.data.map((e, i) => (
+                                            <div key={i} className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: e.fill }} />
+                                                    <span className="text-[12px]" style={{ color: T.muted }}>{e.name}</span>
+                                                </div>
+                                                <span className="text-[13px] font-semibold tabular-nums" style={{ color: T.text }}>{e.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
-      )}
-    </div>
-  )
+    )
 }

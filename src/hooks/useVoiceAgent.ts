@@ -13,9 +13,10 @@ interface UseVoiceAgentProps {
     llmProvider?: "groq" | "ollama" | "xai" | "gemini";
 }
 
-// Split text into speakable sentence chunks as it streams in
-// Splits on . ! ? and also on Hindi danda (।)
 const SENTENCE_BOUNDARY = /([.!?।]+\s*)/;
+
+// Strip ALL [[...]] patterns before TTS — prevents AI from speaking action tags aloud
+const TAG_STRIP_REGEX = /\[\[.*?\]\]/g;
 
 function splitIntoSentences(text: string): { sentences: string[]; remainder: string } {
     const parts = text.split(SENTENCE_BOUNDARY);
@@ -239,10 +240,10 @@ export function useVoiceAgent({
                             const { sentences, remainder } = splitIntoSentences(streamBuffer);
                             if (sentences.length > 0) {
                                 streamBuffer = remainder;
-                                // Queue each sentence via the serialization chain
-                                // (fire-and-forget onto chain — order is preserved by chain)
                                 for (const sentence of sentences) {
-                                    speakSentence(sentence);
+                                    // Strip [[...]] tags BEFORE TTS — AI must not speak them aloud
+                                    const cleanSentence = sentence.replace(TAG_STRIP_REGEX, "").trim();
+                                    if (cleanSentence) speakSentence(cleanSentence);
                                 }
                             }
                         } catch {
@@ -253,7 +254,8 @@ export function useVoiceAgent({
 
                 // Flush any remaining buffer after stream ends
                 if (streamBuffer.trim()) {
-                    speakSentence(streamBuffer.trim()); // add to chain
+                    const cleanRemainder = streamBuffer.trim().replace(TAG_STRIP_REGEX, "").trim();
+                    if (cleanRemainder) speakSentence(cleanRemainder);
                 }
 
                 // Wait for ALL TTS chain calls to finish enqueuing
@@ -287,11 +289,12 @@ export function useVoiceAgent({
                 const data = await response.json();
                 fullResponse = data.candidates[0].content.parts[0].text;
 
-                // Sentence-split the full response and TTS in order
+                // Sentence-split the full response, strip tags, then TTS in order
                 const { sentences, remainder } = splitIntoSentences(fullResponse);
                 const allChunks = remainder.trim() ? [...sentences, remainder.trim()] : sentences;
                 for (const chunk of allChunks) {
-                    await speakSentence(chunk);
+                    const cleanChunk = chunk.replace(TAG_STRIP_REGEX, "").trim();
+                    if (cleanChunk) await speakSentence(cleanChunk);
                 }
 
             } else {
@@ -308,7 +311,8 @@ export function useVoiceAgent({
                 const { sentences, remainder } = splitIntoSentences(fullResponse);
                 const allChunks = remainder.trim() ? [...sentences, remainder.trim()] : sentences;
                 for (const chunk of allChunks) {
-                    await speakSentence(chunk);
+                    const cleanChunk = chunk.replace(TAG_STRIP_REGEX, "").trim();
+                    if (cleanChunk) await speakSentence(cleanChunk);
                 }
             }
 
@@ -326,35 +330,47 @@ export function useVoiceAgent({
                     if (key && val) params[key] = val;
                 });
 
-                console.log(`Triggering Google Action: ${actionType}`, params);
+                console.log(`Triggering Action: ${actionType}`, params);
+
+                // ── Sharmaji Prompt Specific Handlers ───────────────────────
+                
+                // 1. Confirmation Code Generation for bookings
+                if (actionType === 'book_appointment' && !params.confirmation_code) {
+                    params.confirmation_code = Math.floor(100000 + Math.random() * 900000).toString();
+                }
+
+                // 2. Map 'log_call_data' to Google Bridge
                 const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL;
                 if (bridgeUrl) {
-                    // 1. Prepare Full Transcript
+                    // Prepare Full Transcript
                     const transcript = messagesRef.current
                         .filter(m => m.role !== 'system')
                         .map(m => `${m.role.toUpperCase()}: ${m.content}`)
                         .join('\n\n');
 
-                    // 2. Prepare Audio Base64 if available
+                    // Prepare Audio Base64 if available
                     let audioBase64 = "";
                     if (audioChunks.current.length > 0) {
-                        const blob = new Blob(audioChunks.current, { type: "audio/wav" });
-                        audioBase64 = await new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                const base64 = (reader.result as string).split(',')[1];
-                                resolve(base64);
-                            };
-                            reader.readAsDataURL(blob);
-                        });
+                        try {
+                            const blob = new Blob(audioChunks.current, { type: "audio/wav" });
+                            audioBase64 = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    const base64 = (reader.result as string).split(',')[1];
+                                    resolve(base64);
+                                };
+                                reader.readAsDataURL(blob);
+                            });
+                        } catch (e) { console.warn("Audio capture failed:", e); }
                     }
 
-                    // 3. Normalized Phone
-                    if (params.mobile || params.patient_mobile_no) {
-                        const raw = params.mobile || params.patient_mobile_no;
-                        params.mobile = raw.replace(/[^\d+]/g, '');
+                    // Normalized Phone
+                    if (params.phone_number || params.mobile) {
+                        const raw = params.phone_number || params.mobile;
+                        params.phone_number = raw.replace(/[^\d+]/g, '');
                     }
 
+                    // Fire to Google Bridge
                     fetch(bridgeUrl, {
                         method: "POST",
                         mode: "no-cors",
@@ -365,7 +381,12 @@ export function useVoiceAgent({
                             transcript,
                             audioBase64
                         }),
-                    }).catch(err => console.error("Google Bridge Error:", err));
+                    }).catch(err => console.error("Bridge Error:", err));
+                }
+
+                // 3. UI-only feedback for transfer (Simulated)
+                if (actionType === 'transfer_call') {
+                    setErrorMsg("Agent: Connecting you with our team now... (Simulation)");
                 }
 
                 cleanResponse = cleanResponse.replace(match[0], "");
@@ -481,6 +502,35 @@ export function useVoiceAgent({
     }, [agentState, stopMic]);
 
     const stopAgent = useCallback(() => {
+        // ── Safety Net: Extract real data from conversation + log to bridge ──────
+        const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL;
+        const allMsgs = messagesRef.current.filter(m => m.role !== 'system');
+        if (bridgeUrl && allMsgs.length > 0) {
+            const transcript = allMsgs.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+            const fullText = allMsgs.map(m => m.content).join(' ');
+
+            // Try to extract patient name from conversation (AI typically says "Great, <Name>!")
+            const nameMatch = fullText.match(/(?:Great|Perfect|Alright|Thanks)[,!]?\s+([A-Z][a-z]+)/);
+            const phoneMatch = fullText.match(/(\+?[0-9]{10,13})/);
+            const reasonMatch = fullText.match(/(?:root canal|cleaning|filling|braces|implant|consultation|whitening|cosmetic|extraction)/i);
+
+            fetch(bridgeUrl, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify({
+                    type: 'LOG_CALL',
+                    businessName,
+                    data: {
+                        session_uid: "AUTO_LOG",
+                        patient_name: nameMatch?.[1] || null,
+                        phone_number: phoneMatch?.[1] || null,
+                        service_reason: reasonMatch?.[0] || null,
+                    },
+                    transcript
+                }),
+            }).catch(() => {});
+        }
+
         stopMic();
         isPipelineActiveRef.current = false;
         audioQueueRef.current = [];
@@ -490,7 +540,7 @@ export function useVoiceAgent({
             currentAudio.current.currentTime = 0;
         }
         setAgentState("idle");
-    }, [stopMic]);
+    }, [stopMic, businessName]);
 
     const clearHistory = useCallback(() => {
         const resetMessages: ChatMessage[] = [{ role: "system", content: systemPrompt }];

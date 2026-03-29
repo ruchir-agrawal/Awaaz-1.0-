@@ -1,106 +1,89 @@
 import { Outlet, Link, useLocation } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
-import {
-    LayoutDashboard,
-    Users,
-    ActivitySquare,
-    CreditCard,
-    LogOut,
-    Menu,
-    X,
-    Server,
-} from "lucide-react"
+import { LayoutDashboard, Users, ActivitySquare, Server, CreditCard, LogOut, Menu, X, Bot } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
-function MandalaDecor({ className }: { className?: string }) {
+const D = "'Syne', sans-serif"
+const T = {
+    text: "#e8e4dd",
+    muted: "rgba(232,228,221,0.38)",
+    ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)",
+    terra: "#b85c35",
+}
+
+function Mark() {
     return (
-        <svg viewBox="0 0 120 120" className={className} fill="none">
-            <circle cx="60" cy="60" r="58" stroke="currentColor" strokeWidth="0.5" opacity="0.4" />
-            <circle cx="60" cy="60" r="44" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
-            <circle cx="60" cy="60" r="28" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
-            <circle cx="60" cy="60" r="10" stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-            {Array.from({ length: 8 }).map((_, i) => {
-                const angle = (i * 45 * Math.PI) / 180
-                const x1 = 60 + Math.cos(angle) * 12, y1 = 60 + Math.sin(angle) * 12
-                const x2 = 60 + Math.cos(angle) * 57, y2 = 60 + Math.sin(angle) * 57
-                const mx = 60 + Math.cos(angle + Math.PI / 8) * 38
-                const my = 60 + Math.sin(angle + Math.PI / 8) * 38
-                return <path key={i} d={`M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`} stroke="currentColor" strokeWidth="0.5" opacity="0.35" />
-            })}
-            {Array.from({ length: 8 }).map((_, i) => {
-                const angle = (i * 45 * Math.PI) / 180
-                const x = 60 + Math.cos(angle) * 44, y = 60 + Math.sin(angle) * 44
-                return <rect key={i} x={x - 2} y={y - 2} width="4" height="4" fill="currentColor" transform={`rotate(45 ${x} ${y})`} opacity="0.5" />
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+            <circle cx="16" cy="16" r="15" stroke="currentColor" strokeWidth="0.6" opacity="0.5" />
+            <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="0.6" opacity="0.35" />
+            <circle cx="16" cy="16" r="3" fill="currentColor" opacity="0.6" />
+            {[0, 45, 90, 135, 180, 225, 270, 315].map(a => {
+                const r = a * Math.PI / 180
+                return <line key={a}
+                    x1={16 + Math.cos(r) * 4} y1={16 + Math.sin(r) * 4}
+                    x2={16 + Math.cos(r) * 14} y2={16 + Math.sin(r) * 14}
+                    stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
             })}
         </svg>
     )
 }
 
-const navigation = [
-    { name: "Platform Overview", href: "/admin", icon: LayoutDashboard },
-    { name: "All Owners", href: "/admin/owners", icon: Users },
-    { name: "System Health", href: "/admin/health", icon: ActivitySquare },
-    { name: "API Monitor", href: "/admin/api-monitor", icon: Server },
-    { name: "Billing & Plans", href: "/admin/billing", icon: CreditCard },
+const nav = [
+    { label: "Overview", to: "/admin", icon: LayoutDashboard },
+    { label: "All Owners", to: "/admin/owners", icon: Users },
+    { label: "Agent Playground", to: "/admin/playground", icon: Bot },
+    { label: "System Health", to: "/admin/health", icon: ActivitySquare },
+    { label: "API Monitor", to: "/admin/api-monitor", icon: Server },
+    { label: "Billing", to: "/admin/billing", icon: CreditCard },
 ]
 
-function SidebarContent({ onClose, signOut, location }: any) {
+function Sidebar({ close, signOut, path }: any) {
     return (
-        <div className="flex flex-col h-full" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+        <div className="flex flex-col h-full" style={{ fontFamily: "'Inter', sans-serif" }}>
             {/* Brand */}
-            <div className="px-6 pt-8 pb-4 flex items-center gap-3">
-                <MandalaDecor className="w-7 h-7 text-amber-500/80" />
-                <div>
-                    <span className="text-[22px] text-[#f0ede8] leading-none block"
-                        style={{ fontFamily: "'Instrument Serif', serif" }}>
-                        Awaaz
-                    </span>
+            <div className="px-6 pt-8 pb-5" style={{ color: T.text }}>
+                <div className="flex items-center gap-2.5 mb-4">
+                    <Mark />
+                    <span style={{ fontFamily: D, fontWeight: 700, fontSize: "18px", letterSpacing: "-0.02em" }}>Awaaz</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-[0.15em]"
+                    style={{ color: T.terra, background: "rgba(184,92,53,0.1)", border: "1px solid rgba(184,92,53,0.2)" }}>
+                    <span className="w-1 h-1 rounded-full bg-[#b85c35]" />
+                    Admin Console
                 </div>
             </div>
 
-            {/* Admin badge */}
-            <div className="px-6 pb-6 border-b border-white/5">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] uppercase text-[#c9a227] bg-[rgba(201,162,39,0.1)] border border-[rgba(201,162,39,0.2)] px-2.5 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 bg-[#c9a227] rounded-full" />
-                    Sovereign Admin
-                </span>
-            </div>
+            <div className="h-px mx-6 mb-4" style={{ background: T.border }} />
 
             {/* Nav */}
-            <nav className="flex-1 px-3 py-6 space-y-1">
-                {navigation.map(item => {
-                    const isActive = location.pathname === item.href ||
-                        (location.pathname === "/admin/" && item.href === "/admin")
+            <nav className="flex-1 px-3 space-y-0.5">
+                {nav.map(item => {
+                    const active = path === item.to || (path === "/admin/" && item.to === "/admin")
                     return (
-                        <Link
-                            key={item.name}
-                            to={item.href}
-                            onClick={onClose}
+                        <Link key={item.label} to={item.to} onClick={close}
                             className={cn(
-                                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all",
-                                isActive
-                                    ? "bg-[rgba(196,100,58,0.12)] text-[#e8845c] border border-[rgba(196,100,58,0.2)]"
-                                    : "text-[rgba(240,237,232,0.4)] hover:text-[#f0ede8] hover:bg-white/5"
+                                "flex items-center gap-3 pl-3 pr-4 py-2.5 rounded-lg text-[13px] font-medium transition-all border-l-2",
+                                active
+                                    ? "border-[#b85c35] bg-[rgba(184,92,53,0.07)]"
+                                    : "border-transparent hover:bg-[rgba(232,228,221,0.04)]"
                             )}
-                        >
-                            <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-[#c4643a]" : "opacity-60")} />
-                            {item.name}
+                            style={{ color: active ? T.text : T.muted }}>
+                            <item.icon className="w-[15px] h-[15px] shrink-0" style={{ opacity: active ? 1 : 0.6 }} />
+                            {item.label}
                         </Link>
                     )
                 })}
             </nav>
 
-            <div className="px-6 pb-8">
-                <div className="relative h-px bg-white/5 mb-6">
-                    <MandalaDecor className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 text-[rgba(196,100,58,0.3)]" />
-                </div>
-                <button
-                    onClick={signOut}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-[rgba(240,237,232,0.3)] hover:text-[rgba(240,237,232,0.7)] hover:bg-white/5 transition-all"
-                >
-                    <LogOut className="w-4 h-4 opacity-60" />
-                    Sign Out
+            <div className="p-3 pt-0">
+                <div className="h-px mb-3" style={{ background: T.border }} />
+                <button onClick={signOut}
+                    className="w-full flex items-center gap-3 pl-3 pr-4 py-2.5 rounded-lg text-[13px] transition-all border-l-2 border-transparent hover:bg-[rgba(232,228,221,0.04)]"
+                    style={{ color: T.muted, fontFamily: "'Inter', sans-serif" }}>
+                    <LogOut className="w-[15px] h-[15px] opacity-60" />
+                    Sign out
                 </button>
             </div>
         </div>
@@ -109,37 +92,40 @@ function SidebarContent({ onClose, signOut, location }: any) {
 
 export function AdminLayout() {
     const { signOut } = useAuth()
-    const location = useLocation()
-    const [isMobileOpen, setIsMobileOpen] = useState(false)
-    const sidebarProps = { onClose: () => setIsMobileOpen(false), signOut, location }
+    const { pathname } = useLocation()
+    const [open, setOpen] = useState(false)
+    const sp = { close: () => setOpen(false), signOut, path: pathname }
 
     return (
-        <div className="min-h-screen bg-[#080808]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-            <aside className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col bg-[#0d0d0d] border-r border-white/5">
-                <SidebarContent {...sidebarProps} />
+        <div className="min-h-screen" style={{ background: "#080808", fontFamily: "'Inter', sans-serif" }}>
+            <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-[220px] lg:flex-col"
+                style={{ background: "#0a0a0a", borderRight: `1px solid ${T.border}` }}>
+                <Sidebar {...sp} />
             </aside>
 
-            <div className="lg:hidden flex h-14 items-center justify-between px-4 border-b border-white/5 bg-[#0d0d0d]">
-                <div className="flex items-center gap-2">
-                    <MandalaDecor className="w-5 h-5 text-amber-500/70" />
-                    <span className="text-lg text-[#f0ede8]" style={{ fontFamily: "'Instrument Serif', serif" }}>Awaaz Core</span>
+            <header className="lg:hidden flex h-14 items-center justify-between px-5 border-b"
+                style={{ background: "#0a0a0a", borderColor: T.border }}>
+                <div className="flex items-center gap-2" style={{ color: T.text }}>
+                    <Mark />
+                    <span style={{ fontFamily: D, fontWeight: 700, fontSize: "16px" }}>Awaaz</span>
                 </div>
-                <button onClick={() => setIsMobileOpen(!isMobileOpen)} className="text-[rgba(240,237,232,0.5)]">
-                    {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                <button onClick={() => setOpen(!open)} style={{ color: T.muted }}>
+                    {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 </button>
-            </div>
+            </header>
 
-            {isMobileOpen && (
+            {open && (
                 <div className="fixed inset-0 z-50 lg:hidden">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileOpen(false)} />
-                    <div className="absolute left-0 inset-y-0 w-64 bg-[#0d0d0d] border-r border-white/5">
-                        <SidebarContent {...sidebarProps} />
+                    <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
+                    <div className="absolute left-0 inset-y-0 w-[220px]"
+                        style={{ background: "#0a0a0a", borderRight: `1px solid ${T.border}` }}>
+                        <Sidebar {...sp} />
                     </div>
                 </div>
             )}
 
-            <main className="lg:pl-64 min-h-screen">
-                <div className="px-6 py-8 lg:px-10 max-w-7xl mx-auto">
+            <main className="lg:pl-[220px] min-h-screen">
+                <div className="px-8 py-10 lg:px-12 max-w-6xl mx-auto">
                     <Outlet />
                 </div>
             </main>

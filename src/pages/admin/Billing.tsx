@@ -1,134 +1,122 @@
-import { CreditCard, IndianRupee, TrendingUp, Users, Zap, ArrowUpRight } from "lucide-react"
+import { TrendingUp, IndianRupee } from "lucide-react"
 
-const C = {
-  gold: "#c9a227", goldLight: "rgba(201,162,39,0.1)", goldBorder: "rgba(201,162,39,0.18)",
-  terra: "#c4643a", terraLight: "rgba(196,100,58,0.1)", terraBorder: "rgba(196,100,58,0.18)",
-  text: "#f0ede8", textMuted: "rgba(240,237,232,0.4)",
-  surface: "#0f0f0f", elevated: "#141414", border: "rgba(255,255,255,0.06)",
-  ok: "#5c9e6e", okBg: "rgba(92,158,110,0.1)",
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)", gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)",
+    terra: "#b85c35", terraBg: "rgba(184,92,53,0.08)", surface: "#0d0d0d", ok: "#4aaa78",
 }
 
 const PLANS = [
-  { name: "Starter", price: "₹999", per: "/ month", tenants: 3, desc: "Single agent, 500 calls/mo", color: C.textMuted },
-  { name: "Growth", price: "₹2,499", per: "/ month", tenants: 8, desc: "3 agents, 2,000 calls/mo, analytics", color: C.gold },
-  { name: "Enterprise", price: "₹7,999", per: "/ month", tenants: 2, desc: "Unlimited agents, custom prompts, SLA", color: C.terra },
+    { name: "Starter", price: 999, tenants: 3, desc: "Single agent · 500 calls/mo" },
+    { name: "Growth", price: 2499, tenants: 8, desc: "3 agents · 2,000 calls/mo · analytics", highlight: true },
+    { name: "Enterprise", price: 7999, tenants: 2, desc: "Unlimited agents · custom prompts · SLA" },
 ]
 
-const MOCK_TXN = [
-  { id: "txn_001", owner: "Dr. Ananya Kapoor", plan: "Growth", amount: "₹2,499", date: "Mar 28, 2026", status: "Paid" },
-  { id: "txn_002", owner: "Raj Sharma Auto Works", plan: "Starter", amount: "₹999", date: "Mar 27, 2026", status: "Paid" },
-  { id: "txn_003", owner: "Luxe Beauty Salon", plan: "Enterprise", amount: "₹7,999", date: "Mar 25, 2026", status: "Paid" },
-  { id: "txn_004", owner: "Gupta Real Estate", plan: "Growth", amount: "₹2,499", date: "Mar 22, 2026", status: "Due" },
+const TRANSACTIONS = [
+    { owner: "Dr. Ananya Kapoor", plan: "Growth", amount: 2499, date: "Mar 28", status: "paid" },
+    { owner: "Raj Sharma Auto", plan: "Starter", amount: 999, date: "Mar 27", status: "paid" },
+    { owner: "Luxe Beauty Salon", plan: "Enterprise", amount: 7999, date: "Mar 25", status: "paid" },
+    { owner: "Gupta Real Estate", plan: "Growth", amount: 2499, date: "Mar 22", status: "due" },
+    { owner: "City Diagnostics", plan: "Starter", amount: 999, date: "Mar 18", status: "paid" },
 ]
 
 export default function AdminBilling() {
-  const mrr = PLANS.reduce((acc, p) => acc + parseInt(p.price.replace(/[₹,]/g, "")) * p.tenants, 0)
+    const mrr = PLANS.reduce((a, p) => a + p.price * p.tenants, 0)
+    const arr = mrr * 12
 
-  return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-      <div className="mb-10">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full mb-4"
-          style={{ color: C.terra, background: C.terraLight, border: `1px solid ${C.terraBorder}` }}>
-          <span className="w-1.5 h-1.5 bg-[#c4643a] rounded-full" />
-          Sovereign Admin
-        </span>
-        <h1 className="text-[2.4rem] leading-tight mb-1" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
-          Billing & Plans
-        </h1>
-        <p className="text-[14px]" style={{ color: C.textMuted }}>Platform revenue, subscriptions, and transaction history.</p>
-      </div>
-
-      {/* MRR strip */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="rounded-2xl border p-6 col-span-1" style={{ background: C.surface, borderColor: C.goldBorder }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4" style={{ background: C.goldLight }}>
-            <IndianRupee className="w-4 h-4" style={{ color: C.gold }} />
-          </div>
-          <div className="text-[2rem] font-bold tabular-nums" style={{ color: C.text }}>₹{mrr.toLocaleString("en-IN")}</div>
-          <div className="text-[12px] mt-1" style={{ color: C.textMuted }}>Monthly Recurring Revenue</div>
-        </div>
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4" style={{ background: "rgba(92,158,110,0.1)" }}>
-            <Users className="w-4 h-4" style={{ color: C.ok }} />
-          </div>
-          <div className="text-[2rem] font-bold" style={{ color: C.text }}>13</div>
-          <div className="text-[12px] mt-1" style={{ color: C.textMuted }}>Paying Subscriptions</div>
-        </div>
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4" style={{ background: C.terraLight }}>
-            <TrendingUp className="w-4 h-4" style={{ color: C.terra }} />
-          </div>
-          <div className="text-[2rem] font-bold" style={{ color: C.text }}>+18%</div>
-          <div className="text-[12px] mt-1" style={{ color: C.textMuted }}>MoM Growth</div>
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Plans */}
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="flex items-center gap-2 mb-6">
-            <Zap className="w-4 h-4" style={{ color: C.gold }} />
-            <h2 className="text-[15px] font-semibold" style={{ color: C.text }}>Subscription Plans</h2>
-          </div>
-          <div className="space-y-3">
-            {PLANS.map(plan => (
-              <div key={plan.name} className="flex items-center justify-between p-4 rounded-xl border"
-                style={{ background: C.elevated, borderColor: C.border }}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold" style={{ color: plan.color }}>{plan.name}</span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full tabular-nums"
-                      style={{ background: "rgba(255,255,255,0.05)", color: C.textMuted }}>
-                      {plan.tenants} tenants
-                    </span>
-                  </div>
-                  <div className="text-[11px] mt-0.5" style={{ color: C.textMuted }}>{plan.desc}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[15px] font-bold tabular-nums" style={{ color: C.text }}>{plan.price}</div>
-                  <div className="text-[11px]" style={{ color: C.textMuted }}>{plan.per}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Transactions */}
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="flex items-center gap-2 mb-6">
-            <CreditCard className="w-4 h-4" style={{ color: C.terra }} />
-            <h2 className="text-[15px] font-semibold" style={{ color: C.text }}>Recent Transactions</h2>
-          </div>
-          <div className="space-y-3">
-            {MOCK_TXN.map(txn => (
-              <div key={txn.id} className="flex items-center justify-between py-3 border-b last:border-0"
-                style={{ borderColor: C.border }}>
-                <div>
-                  <div className="text-[13px] font-medium" style={{ color: C.text }}>{txn.owner}</div>
-                  <div className="text-[11px]" style={{ color: C.textMuted }}>{txn.plan} · {txn.date}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[14px] font-semibold tabular-nums" style={{ color: C.text }}>{txn.amount}</div>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ color: txn.status === "Paid" ? C.ok : C.terra, background: txn.status === "Paid" ? C.okBg : C.terraLight }}>
-                    {txn.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 pt-4 border-t" style={{ borderColor: C.border }}>
-            <div className="rounded-xl border px-4 py-3 flex items-center justify-between"
-              style={{ background: "rgba(201,162,39,0.05)", borderColor: C.goldBorder }}>
-              <p className="text-[12px]" style={{ color: C.textMuted }}>
-                Full billing integration with Razorpay coming soon.
-              </p>
-              <ArrowUpRight className="w-4 h-4 flex-shrink-0" style={{ color: C.gold }} />
+    return (
+        <div style={{ fontFamily: I }}>
+            <div className="mb-8">
+                <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Admin console</p>
+                <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                    Billing & revenue
+                </h1>
             </div>
-          </div>
+
+            {/* Revenue metric strip */}
+            <div className="flex divide-x rounded-xl border mb-8 overflow-hidden"
+                style={{ borderColor: `rgba(200,160,52,0.2)`, background: "rgba(200,160,52,0.04)" }}>
+                {[
+                    { label: "Monthly recurring", value: `₹${mrr.toLocaleString("en-IN")}` },
+                    { label: "Annual recurring", value: `₹${(arr / 100000).toFixed(1)}L` },
+                    { label: "Paying tenants", value: PLANS.reduce((a, p) => a + p.tenants, 0) },
+                    { label: "MoM growth", value: "↑ 18%" },
+                ].map((m, i) => (
+                    <div key={i} className="flex-1 px-6 py-5">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.5rem,2.5vw,2.2rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                            {m.value}
+                        </div>
+                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid lg:grid-cols-[1fr_340px] gap-6">
+                {/* Transactions */}
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
+                    <div className="px-6 py-5 border-b" style={{ background: T.surface, borderColor: T.border }}>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Transactions</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Recent payments from tenants</div>
+                    </div>
+                    <div className="grid px-5 py-2.5 border-b text-[10px] uppercase tracking-[0.18em]"
+                        style={{ gridTemplateColumns: "1.5fr 80px 90px 100px 70px", background: "#0a0a0a", borderColor: T.border, color: T.muted }}>
+                        <span>Owner</span><span>Plan</span><span>Amount</span><span>Date</span><span>Status</span>
+                    </div>
+                    {TRANSACTIONS.map((txn, idx) => (
+                        <div key={idx} className="grid px-5 py-4 border-b last:border-0"
+                            style={{ gridTemplateColumns: "1.5fr 80px 90px 100px 70px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                            <div className="text-[14px] font-medium self-center" style={{ color: T.text }}>{txn.owner}</div>
+                            <div className="text-[13px] self-center" style={{ color: T.muted }}>{txn.plan}</div>
+                            <div className="text-[14px] font-semibold font-mono self-center tabular-nums" style={{ color: T.text }}>₹{txn.amount.toLocaleString("en-IN")}</div>
+                            <div className="text-[13px] self-center" style={{ color: T.muted }}>{txn.date}</div>
+                            <div className="self-center">
+                                <span className="text-[11px] font-medium px-2 py-1 rounded-md"
+                                    style={{ color: txn.status === "paid" ? T.ok : T.terra, background: txn.status === "paid" ? "rgba(74,170,120,0.09)" : T.terraBg }}>
+                                    {txn.status.charAt(0).toUpperCase() + txn.status.slice(1)}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Plans */}
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                    <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Subscription plans</div>
+                    </div>
+                    {PLANS.map((plan, idx) => (
+                        <div key={idx} className="px-6 py-5 border-b last:border-0"
+                            style={{ borderColor: T.border, background: plan.highlight ? "rgba(200,160,52,0.04)" : undefined }}>
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span style={{ fontFamily: D, fontWeight: 700, fontSize: "1rem", color: plan.highlight ? T.gold : T.text }}>{plan.name}</span>
+                                        {plan.highlight && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide" style={{ color: T.gold, background: T.goldBg }}>Popular</span>}
+                                    </div>
+                                    <div className="text-[12px] mt-1" style={{ color: T.muted }}>{plan.desc}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div style={{ fontFamily: D, fontWeight: 700, fontSize: "1.3rem", color: T.text }}>₹{plan.price.toLocaleString("en-IN")}</div>
+                                    <div className="text-[11px]" style={{ color: T.muted }}>/mo</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-3">
+                                <div className="h-1 rounded-full flex-1" style={{ background: "rgba(232,228,221,0.07)" }}>
+                                    <div className="h-full rounded-full" style={{ width: `${(plan.tenants / 13) * 100}%`, background: plan.highlight ? T.gold : "rgba(232,228,221,0.25)" }} />
+                                </div>
+                                <span className="text-[11px]" style={{ color: T.muted }}>{plan.tenants} tenants</span>
+                            </div>
+                        </div>
+                    ))}
+                    <div className="px-6 py-4 border-t" style={{ borderColor: T.border }}>
+                        <p className="text-[12px]" style={{ color: T.muted }}>
+                            Full Razorpay integration coming soon.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    )
 }

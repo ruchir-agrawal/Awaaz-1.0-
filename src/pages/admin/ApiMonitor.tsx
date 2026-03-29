@@ -1,112 +1,107 @@
-import { Server as _S, Zap, RefreshCw, Activity } from "lucide-react"
 import { useState, useEffect } from "react"
+import { RefreshCw } from "lucide-react"
 
-const C = {
-  gold: "#c9a227", goldLight: "rgba(201,162,39,0.1)", goldBorder: "rgba(201,162,39,0.18)",
-  terra: "#c4643a", terraLight: "rgba(196,100,58,0.1)", terraBorder: "rgba(196,100,58,0.18)",
-  text: "#f0ede8", textMuted: "rgba(240,237,232,0.4)",
-  surface: "#0f0f0f", elevated: "#141414", border: "rgba(255,255,255,0.06)",
-  ok: "#5c9e6e",
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)", gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)",
+    terra: "#b85c35", terraBg: "rgba(184,92,53,0.08)", surface: "#0d0d0d", ok: "#4aaa78",
 }
 
-const MOCK_LOGS = [
-  { id: "req_001", endpoint: "POST /api/v1/calls/initiate", status: 200, latency: "142ms", time: "22:04:11", agent: "Shubh" },
-  { id: "req_002", endpoint: "GET /api/v1/businesses/list", status: 200, latency: "38ms", time: "22:03:57", agent: "—" },
-  { id: "req_003", endpoint: "POST /api/v1/appointments/book", status: 201, latency: "95ms", time: "22:03:41", agent: "Priya" },
-  { id: "req_004", endpoint: "GET /api/v1/calls/history", status: 200, latency: "52ms", time: "22:03:20", agent: "—" },
-  { id: "req_005", endpoint: "POST /api/v1/calls/initiate", status: 200, latency: "138ms", time: "22:02:58", agent: "Raj" },
-  { id: "req_006", endpoint: "POST /api/v1/transcribe", status: 500, latency: "1.2s", time: "22:01:44", agent: "Nisha" },
-  { id: "req_007", endpoint: "WS /realtime/calls", status: 101, latency: "8ms", time: "22:01:12", agent: "—" },
+const BASE_LOGS = [
+    { id: "req_001", method: "POST", endpoint: "/api/v1/calls/initiate", status: 200, ms: 142, agent: "Shubh", time: "02:47:11" },
+    { id: "req_002", method: "GET", endpoint: "/api/v1/businesses/list", status: 200, ms: 38, agent: "—", time: "02:46:57" },
+    { id: "req_003", method: "POST", endpoint: "/api/v1/appointments/book", status: 201, ms: 95, agent: "Priya", time: "02:46:41" },
+    { id: "req_004", method: "GET", endpoint: "/api/v1/calls/history", status: 200, ms: 52, agent: "—", time: "02:45:20" },
+    { id: "req_005", method: "POST", endpoint: "/api/v1/calls/initiate", status: 200, ms: 138, agent: "Raj", time: "02:44:58" },
+    { id: "req_006", method: "POST", endpoint: "/api/v1/transcribe", status: 500, ms: 1200, agent: "Nisha", time: "02:43:44" },
+    { id: "req_007", method: "WS", endpoint: "/realtime/calls", status: 101, ms: 8, agent: "—", time: "02:42:12" },
+    { id: "req_008", method: "POST", endpoint: "/api/v1/tts", status: 200, ms: 312, agent: "Shubh", time: "02:42:08" },
 ]
 
 const ENDPOINTS = [
-  { name: "/api/v1/calls/initiate", rpm: 42, p99: "340ms" },
-  { name: "/api/v1/appointments/book", rpm: 18, p99: "190ms" },
-  { name: "/api/v1/transcribe", rpm: 34, p99: "1.8s" },
-  { name: "WS /realtime/calls", rpm: 88, p99: "12ms" },
+    { name: "/calls/initiate", rpm: 42, p99: "340ms", ok: true },
+    { name: "/appointments/book", rpm: 18, p99: "190ms", ok: true },
+    { name: "/transcribe", rpm: 34, p99: "1.8s", ok: false },
+    { name: "/tts", rpm: 61, p99: "420ms", ok: true },
 ]
 
 export default function AdminApiMonitor() {
-  const [ticks, setTicks] = useState(0)
-  useEffect(() => {
-    const t = setInterval(() => setTicks(n => n + 1), 3000)
-    return () => clearInterval(t)
-  }, [])
+    const [tick, setTick] = useState(0)
+    useEffect(() => { const t = setInterval(() => setTick(n => n + 1), 2000); return () => clearInterval(t) }, [])
 
-  const statusColor = (s: number) => s < 300 ? C.ok : s < 500 ? C.gold : C.terra
-  const statusBg = (s: number) => s < 300 ? "rgba(92,158,110,0.1)" : s < 500 ? C.goldLight : C.terraLight
+    const statusColor = (s: number) => s < 300 ? T.ok : s < 500 ? T.gold : T.terra
+    const statusBg = (s: number) => s < 300 ? "rgba(74,170,120,0.09)" : s < 500 ? T.goldBg : T.terraBg
 
-  return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-      <div className="mb-10 flex items-end justify-between">
-        <div>
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full mb-4"
-            style={{ color: C.terra, background: C.terraLight, border: `1px solid ${C.terraBorder}` }}>
-            <span className="w-1.5 h-1.5 bg-[#c4643a] rounded-full" />
-            Sovereign Admin
-          </span>
-          <h1 className="text-[2.4rem] leading-tight mb-1" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
-            API Monitor
-          </h1>
-          <p className="text-[14px]" style={{ color: C.textMuted }}>Live endpoint usage and request stream.</p>
-        </div>
-        <div className="flex items-center gap-2 text-[12px]" style={{ color: C.textMuted }}>
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-          Live — updates every 3s
-        </div>
-      </div>
+    const methodColor = (m: string) => m === "GET" ? "#4a7fa5" : m === "POST" ? T.gold : m === "WS" ? "#8b6fd0" : T.muted
 
-      {/* Endpoint summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {ENDPOINTS.map(ep => (
-          <div key={ep.name} className="rounded-2xl border p-5" style={{ background: C.surface, borderColor: C.border }}>
-            <div className="flex items-center gap-2 mb-3">
-              <Activity className="w-3.5 h-3.5" style={{ color: C.gold }} />
-              <span className="text-[11px] font-medium truncate" style={{ color: C.textMuted }}>{ep.name.split("/").pop()}</span>
+    return (
+        <div style={{ fontFamily: I }}>
+            <div className="mb-8 flex items-end justify-between gap-4">
+                <div>
+                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Admin console</p>
+                    <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                        API monitor
+                    </h1>
+                </div>
+                <div className="flex items-center gap-2 text-[12px]" style={{ color: T.muted }}>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Live stream
+                </div>
             </div>
-            <div className="text-[1.6rem] font-bold tabular-nums" style={{ color: C.text }}>{ep.rpm + (ticks % 3)}</div>
-            <div className="text-[11px] mt-1" style={{ color: C.textMuted }}>req/min · p99: {ep.p99}</div>
-          </div>
-        ))}
-      </div>
 
-      {/* Live request log */}
-      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: C.border }}>
-        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ background: C.elevated, borderColor: C.border }}>
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" style={{ color: C.gold }} />
-            <span className="text-[14px] font-semibold" style={{ color: C.text }}>Live Request Stream</span>
-          </div>
-          <span className="flex items-center gap-1.5 text-[11px]" style={{ color: C.ok }}>
-            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-            Streaming
-          </span>
+            {/* Endpoint stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                {ENDPOINTS.map((ep, i) => (
+                    <div key={i} className="rounded-xl border p-4" style={{ background: T.surface, borderColor: T.border }}>
+                        <div className="text-[10px] font-mono mb-3 truncate" style={{ color: T.muted }}>{ep.name}</div>
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "1.8rem", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                            {ep.rpm + (tick % 4)}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-widest mt-1.5" style={{ color: T.muted }}>rpm</div>
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: T.border }}>
+                            <span className="text-[11px] font-mono" style={{ color: T.muted }}>p99 {ep.p99}</span>
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-md" style={{ color: ep.ok ? T.ok : T.terra, background: ep.ok ? "rgba(74,170,120,0.09)" : T.terraBg }}>
+                                {ep.ok ? "OK" : "Degraded"}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Request log */}
+            <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
+                <div className="px-5 py-4 border-b flex items-center justify-between" style={{ background: T.surface, borderColor: T.border }}>
+                    <div>
+                        <span style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Request stream</span>
+                        <span className="ml-3 text-[11px]" style={{ color: T.ok }}>● Live</span>
+                    </div>
+                </div>
+                <div className="grid px-5 py-2.5 border-b text-[10px] uppercase tracking-[0.18em]"
+                    style={{ gridTemplateColumns: "90px 50px 1fr 70px 80px 90px 72px", background: "#0a0a0a", borderColor: T.border, color: T.muted }}>
+                    <span>ID</span><span>Method</span><span>Endpoint</span><span>Status</span><span>Latency</span><span>Time</span><span>Agent</span>
+                </div>
+                {BASE_LOGS.map((log, idx) => (
+                    <div key={log.id} className="grid px-5 py-3.5 border-b last:border-0"
+                        style={{ gridTemplateColumns: "90px 50px 1fr 70px 80px 90px 72px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                        <span className="text-[11px] font-mono" style={{ color: T.muted }}>{log.id}</span>
+                        <span className="text-[11px] font-mono font-semibold self-center" style={{ color: methodColor(log.method) }}>{log.method}</span>
+                        <span className="text-[12px] font-mono truncate self-center" style={{ color: T.text }}>{log.endpoint}</span>
+                        <span className="self-center">
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
+                                style={{ color: statusColor(log.status), background: statusBg(log.status) }}>
+                                {log.status}
+                            </span>
+                        </span>
+                        <span className="text-[12px] font-mono self-center tabular-nums" style={{ color: log.ms > 500 ? T.terra : T.muted }}>
+                            {log.ms}ms
+                        </span>
+                        <span className="text-[11px] font-mono self-center" style={{ color: T.muted }}>{log.time}</span>
+                        <span className="text-[12px] self-center" style={{ color: log.agent !== "—" ? T.gold : T.muted }}>{log.agent}</span>
+                    </div>
+                ))}
+            </div>
         </div>
-
-        {/* Column headers */}
-        <div className="grid grid-cols-[120px_1fr_80px_100px_80px_80px] px-5 py-3 border-b text-[11px] font-medium uppercase tracking-[0.15em]"
-          style={{ background: "rgba(255,255,255,0.01)", borderColor: C.border, color: C.textMuted }}>
-          <span>ID</span><span>Endpoint</span><span>Status</span><span>Latency</span><span>Time</span><span>Agent</span>
-        </div>
-
-        {MOCK_LOGS.map((log, i) => (
-          <div key={log.id}
-            className="grid grid-cols-[120px_1fr_80px_100px_80px_80px] px-5 py-3.5 border-b last:border-0"
-            style={{ background: i % 2 === 0 ? C.surface : "rgba(255,255,255,0.01)", borderColor: C.border }}>
-            <span className="text-[11px] font-mono" style={{ color: C.textMuted }}>{log.id}</span>
-            <span className="text-[12px] font-mono truncate" style={{ color: C.text }}>{log.endpoint}</span>
-            <span>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ color: statusColor(log.status), background: statusBg(log.status) }}>
-                {log.status}
-              </span>
-            </span>
-            <span className="text-[12px] font-mono tabular-nums" style={{ color: C.textMuted }}>{log.latency}</span>
-            <span className="text-[11px] font-mono" style={{ color: C.textMuted }}>{log.time}</span>
-            <span className="text-[12px]" style={{ color: log.agent !== "—" ? C.gold : C.textMuted }}>{log.agent}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+    )
 }

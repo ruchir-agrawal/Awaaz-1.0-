@@ -1,120 +1,101 @@
-import { ActivitySquare, Server, CheckCircle2, Database, Globe, Cpu } from "lucide-react"
+import { CheckCircle2, Database, Globe, Cpu, Wifi, Clock } from "lucide-react"
 
-const C = {
-  gold: "#c9a227", goldLight: "rgba(201,162,39,0.1)", goldBorder: "rgba(201,162,39,0.18)",
-  terra: "#c4643a", terraLight: "rgba(196,100,58,0.1)", terraBorder: "rgba(196,100,58,0.18)",
-  text: "#f0ede8", textMuted: "rgba(240,237,232,0.4)",
-  surface: "#0f0f0f", elevated: "#141414", border: "rgba(255,255,255,0.06)",
-  ok: "#5c9e6e", okBg: "rgba(92,158,110,0.1)",
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)", gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)",
+    terra: "#b85c35", terraBg: "rgba(184,92,53,0.08)", surface: "#0d0d0d", ok: "#4aaa78",
 }
 
-const services = [
-  { name: "Supabase DB", desc: "PostgreSQL database", icon: Database, latency: "4ms", status: "Operational" },
-  { name: "Supabase Auth", desc: "Authentication service", icon: CheckCircle2, latency: "6ms", status: "Operational" },
-  { name: "Supabase Realtime", desc: "Websocket events", icon: Globe, latency: "12ms", status: "Operational" },
+const SERVICES = [
+    { name: "Supabase DB", desc: "PostgreSQL · hosted • India West", icon: Database, lat: "4ms", up: 99.97 },
+    { name: "Supabase Auth", desc: "JWT authentication service", icon: CheckCircle2, lat: "6ms", up: 99.99 },
+    { name: "Supabase Realtime", desc: "WebSocket event bus", icon: Wifi, lat: "12ms", up: 99.91 },
 ]
 
-const providers = [
-  { name: "Groq (LPU)", desc: "Primary LLM — ultra-fast inference", latency: "140ms", icon: Cpu, status: "Operational" },
-  { name: "xAI Grok", desc: "Fallback reasoning model", latency: "850ms", icon: Server, status: "Operational" },
-  { name: "Gemini Pro", desc: "Multimodal capabilities", latency: "1.2s", icon: Globe, status: "Operational" },
-  { name: "Sarvam AI (TTS)", desc: "Hindi & Vernacular speech", latency: "320ms", icon: ActivitySquare, status: "Operational" },
+const PROVIDERS = [
+    { name: "Groq (LPU)", desc: "Llama 3 · primary LLM", icon: Cpu, lat: "140ms", up: 99.8 },
+    { name: "xAI Grok", desc: "Grok-Beta · fallback reasoning", icon: Globe, lat: "850ms", up: 99.2 },
+    { name: "Sarvam AI (TTS)", desc: "Hindi & regional speech", icon: Globe, lat: "320ms", up: 98.9 },
+    { name: "Sarvam AI (STT)", desc: "Transcription · multilingual", icon: Globe, lat: "280ms", up: 98.9 },
 ]
 
-function ServiceRow({ name, desc, icon: Icon, latency, status }: any) {
-  return (
-    <div className="flex items-center justify-between p-4 rounded-xl border transition-colors hover:border-[rgba(92,158,110,0.2)]"
-      style={{ background: "rgba(92,158,110,0.03)", borderColor: C.border }}>
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: C.okBg }}>
-          <Icon className="w-4 h-4" style={{ color: C.ok }} />
+function ServiceRow({ name, desc, icon: Icon, lat, up }: any) {
+    const width = `${up}%`
+    const barColor = up >= 99.5 ? "#4aaa78" : up >= 98 ? "#c8a034" : "#b85c35"
+    return (
+        <div className="py-4 border-b last:border-0" style={{ borderColor: T.border }}>
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center border" style={{ borderColor: T.border }}>
+                        <Icon className="w-3.5 h-3.5" style={{ color: barColor }} />
+                    </div>
+                    <div>
+                        <div className="text-[14px] font-medium" style={{ color: T.text }}>{name}</div>
+                        <div className="text-[11px]" style={{ color: T.muted }}>{desc}</div>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: barColor, background: barColor === "#4aaa78" ? "rgba(74,170,120,0.09)" : barColor === "#c8a034" ? T.goldBg : T.terraBg }}>
+                        {up}%
+                    </span>
+                    <div className="text-[11px] font-mono mt-1" style={{ color: T.muted }}>{lat}</div>
+                </div>
+            </div>
+            <div className="flex gap-0.5 h-1 rounded-full overflow-hidden" style={{ background: "rgba(232,228,221,0.06)" }}>
+                <div className="h-full rounded-full transition-all" style={{ width, background: barColor, opacity: 0.7 }} />
+            </div>
         </div>
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: C.text }}>{name}</div>
-          <div className="text-[11px]" style={{ color: C.textMuted }}>{desc}</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-[12px] font-mono tabular-nums" style={{ color: C.textMuted }}>{latency}</span>
-        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full" style={{ color: C.ok, background: C.okBg }}>
-          {status}
-        </span>
-      </div>
-    </div>
-  )
+    )
 }
 
 export default function AdminHealth() {
-  return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-      <div className="mb-10">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full mb-4"
-          style={{ color: C.terra, background: C.terraLight, border: `1px solid ${C.terraBorder}` }}>
-          <span className="w-1.5 h-1.5 bg-[#c4643a] rounded-full" />
-          Sovereign Admin
-        </span>
-        <h1 className="text-[2.4rem] leading-tight mb-1" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
-          System Health
-        </h1>
-        <p className="text-[14px]" style={{ color: C.textMuted }}>Real-time infrastructure monitoring.</p>
-      </div>
-
-      {/* Overall status banner */}
-      <div className="rounded-2xl border p-5 mb-8 flex items-center gap-4"
-        style={{ background: "rgba(92,158,110,0.06)", borderColor: "rgba(92,158,110,0.2)" }}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: C.okBg }}>
-          <CheckCircle2 className="w-5 h-5" style={{ color: C.ok }} />
-        </div>
-        <div>
-          <div className="text-[15px] font-semibold" style={{ color: C.text }}>All Systems Operational</div>
-          <div className="text-[12px] mt-0.5" style={{ color: C.textMuted }}>No incidents in the last 24 hours. Uptime: 99.97%</div>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Core Services */}
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="flex items-center gap-2 mb-6">
-            <ActivitySquare className="w-4 h-4" style={{ color: C.terra }} />
-            <h2 className="text-[15px] font-semibold" style={{ color: C.text }}>Core Services</h2>
-          </div>
-          <div className="space-y-3">
-            {services.map(s => <ServiceRow key={s.name} {...s} />)}
-          </div>
-        </div>
-
-        {/* AI Providers */}
-        <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-          <div className="flex items-center gap-2 mb-6">
-            <Server className="w-4 h-4" style={{ color: C.gold }} />
-            <h2 className="text-[15px] font-semibold" style={{ color: C.text }}>AI Providers</h2>
-          </div>
-          <div className="space-y-3">
-            {providers.map(s => <ServiceRow key={s.name} {...s} />)}
-          </div>
-        </div>
-      </div>
-
-      {/* Simulated uptime bars */}
-      <div className="rounded-2xl border p-6 mt-6" style={{ background: C.surface, borderColor: C.border }}>
-        <h2 className="text-[15px] font-semibold mb-5" style={{ color: C.text }}>90-Day Uptime</h2>
-        <div className="space-y-4">
-          {["Supabase DB", "Groq", "Sarvam AI", "API Gateway"].map(name => (
-            <div key={name}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[13px]" style={{ color: C.textMuted }}>{name}</span>
-                <span className="text-[12px] font-semibold" style={{ color: C.ok }}>99.9%</span>
-              </div>
-              <div className="flex gap-0.5">
-                {Array.from({ length: 90 }).map((_, i) => (
-                  <div key={i} className="flex-1 h-6 rounded-sm transition-colors"
-                    style={{ background: Math.random() > 0.02 ? "rgba(92,158,110,0.5)" : "rgba(196,100,58,0.5)" }} />
-                ))}
-              </div>
+    return (
+        <div style={{ fontFamily: I }}>
+            <div className="mb-8">
+                <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Admin console</p>
+                <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                    System health
+                </h1>
+                <p className="text-[14px] mt-1" style={{ color: T.muted }}>Real-time infrastructure monitoring.</p>
             </div>
-          ))}
+
+            {/* Overall banner */}
+            <div className="flex items-center gap-4 px-5 py-4 rounded-xl border mb-8"
+                style={{ background: "rgba(74,170,120,0.05)", borderColor: "rgba(74,170,120,0.2)" }}>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <div>
+                    <span className="text-[15px] font-semibold" style={{ color: T.text }}>All systems operational</span>
+                    <span className="text-[12px] ml-3" style={{ color: T.muted }}>No incidents in last 24h</span>
+                </div>
+                <div className="ml-auto flex items-center gap-1.5 text-[12px]" style={{ color: T.muted }}>
+                    <Clock className="w-3.5 h-3.5" />
+                    Updated just now
+                </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                    <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Core infrastructure</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Database, auth, and realtime</div>
+                    </div>
+                    <div className="px-6">
+                        {SERVICES.map(s => <ServiceRow key={s.name} {...s} />)}
+                    </div>
+                </div>
+
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                    <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>AI providers</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>LLM, TTS, and STT services</div>
+                    </div>
+                    <div className="px-6">
+                        {PROVIDERS.map(s => <ServiceRow key={s.name} {...s} />)}
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    )
 }

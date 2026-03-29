@@ -1,242 +1,292 @@
-import { useState, useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useVoiceAgent } from "@/hooks/useVoiceAgent"
 import { useBusinessData } from "@/hooks/useBusinessData"
-import { Card, CardContent } from "@/components/ui/Card"
-import { Button } from "@/components/ui/Button"
-import { Select } from "@/components/ui/Select"
-import {
-    Mic,
-    Square,
-    Trash2,
-    BrainCircuit,
-    Activity,
-    AlertCircle,
-    RefreshCw,
-    Settings as SettingsIcon,
-    X,
-    Database,
-    Zap,
-    MessageSquare,
-    Sparkles
-} from "lucide-react"
+import { useState } from "react"
+import { Mic, Square, Trash2, Activity, AlertCircle, MessageSquare, BrainCircuit, Sparkles } from "lucide-react"
+
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd",
+    muted: "rgba(232,228,221,0.38)",
+    ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)",
+    borderStrong: "rgba(232,228,221,0.12)",
+    gold: "#c8a034",
+    goldBg: "rgba(200,160,52,0.08)",
+    terra: "#b85c35",
+    surface: "#0d0d0d",
+    ok: "#4aaa78",
+    bg: "#080808",
+}
 
 export default function Playground() {
-    const [model, setModel] = useState("qwen2.5:7b")
-    const [useCloudLLM, setUseCloudLLM] = useState(true)
-    const [llmProvider, setLlmProvider] = useState<"groq" | "xai" | "gemini">("groq")
-    const [showSettings, setShowSettings] = useState(false)
-    const scrollRef = useRef<HTMLDivElement>(null)
-    const isContinuous = true
-
-    // Load system prompt from Supabase business record
     const { business, loading: businessLoading } = useBusinessData()
-    const [systemPrompt, setSystemPrompt] = useState("");
+    const [systemPrompt, setSystemPrompt] = useState("")
+    const scrollRef = useRef<HTMLDivElement>(null)
 
+    /* Build prompt from business record + Google Sheet appointments */
     useEffect(() => {
-        if (business?.system_prompt) {
-            // Inject a fresh session UID into the stored prompt
-            const sessionUid = (business.slug?.toUpperCase() || "AWZ") + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
-            // Replace placeholder {{SESSION_UID}} if present, otherwise append the UID context
-            const promptWithUid = business.system_prompt.includes("{{SESSION_UID}}")
-                ? business.system_prompt.replace(/{{SESSION_UID}}/g, sessionUid)
-                : business.system_prompt + `\n\n[SESSION]: Your private session ID is ${sessionUid}. NEVER speak this ID aloud. Use it in all [[ACTION:...]] triggers.`;
-            setSystemPrompt(promptWithUid);
-        }
-    }, [business]);
+        if (!business?.system_prompt) return
+        const init = async () => {
+            const sessionUid = (business.slug?.toUpperCase() || "AWZ") + "-" + Math.random().toString(36).substring(2, 6).toUpperCase()
+            const nowIST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: true, hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
 
-    const {
-        agentState,
-        messages,
-        errorMsg,
-        startListening,
-        stopAgent,
-        clearHistory
-    } = useVoiceAgent({
+            let base = business.system_prompt!
+            
+            // Inject Variables
+            base = base.replace(/{{SESSION_UID}}/g, sessionUid)
+            base = base.replace(/{{current_time_IST}}/g, nowIST)
+            base = base.replace(/{{user_number}}/g, "Unknown")
+
+            // Append Technical Guide for Actions
+            base += `\n\n[TECHNICAL INSTRUCTIONS]:
+To trigger the functions mentioned in your prompt, you MUST use this exact syntax:
+- For Availability: [[ACTION: check_calendar_availability | reason: <reason>]]
+- For Booking: [[ACTION: book_appointment | patient_name: <name> | phone_number: <phone> | appointment_datetime: <datetime> | service_reason: <service> | new_or_returning: <status>]]
+- For Logging (End of call): [[ACTION: log_call_data | session_uid: ${sessionUid} | patient_name: <name> | phone_number: <phone> | new_or_returning: <status> | service_reason: <reason> | appointment_datetime: <datetime>]]
+- For Transfer: [[ACTION: transfer_call | reason: <reason>]]
+
+IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`
+
+            const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
+            if (bridgeUrl && business.name) {
+                try {
+                    const res = await fetch(`${bridgeUrl}?businessName=${encodeURIComponent(business.name)}`)
+                    const json = await res.json()
+                    if (json.status === "ok" && json.appointments?.length > 0) {
+                        const lines = json.appointments.map((a: any) =>
+                            `- ${a.callTime}: ${a.patientName} (${a.mobile}) — ${a.reason} — Status: ${a.status}`
+                        ).join("\n")
+                        base += `\n\n[EXISTING APPOINTMENTS — DO NOT DOUBLE BOOK]:\n${lines}\n\nCheck this list before booking. If a slot is taken, tell the caller and suggest the next available time.`
+                    }
+                } catch { /* silent */ }
+            }
+            setSystemPrompt(base)
+        }
+        init()
+    }, [business])
+
+    const { agentState, messages, errorMsg, startListening, stopAgent, clearHistory } = useVoiceAgent({
         systemPrompt,
         businessName: business?.name,
-        model,
-        useCloudLLM,
-        isContinuous,
-        llmProvider: useCloudLLM ? llmProvider : "ollama" as any
+        useCloudLLM: true,
+        isContinuous: true,
     })
 
     const displayMessages = messages.filter(m => m.role !== "system")
 
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-        }
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }, [messages, agentState])
 
-    const getOrbAnimation = () => {
-        switch (agentState) {
-            case "listening": return "animate-[pulse_1.5s_ease-in-out_infinite] scale-110 shadow-[0_0_60px_rgba(34,197,94,0.4)] bg-green-500"
-            case "thinking": return "animate-bounce scale-105 shadow-[0_0_40px_rgba(59,130,246,0.3)] bg-blue-500"
-            case "speaking": return "animate-[ping_3s_ease-in-out_infinite] scale-105 shadow-[0_0_50px_rgba(var(--primary),0.5)] bg-primary"
-            case "error": return "bg-destructive shadow-[0_0_20px_rgba(239,68,68,0.4)]"
-            default: return "bg-muted shadow-xl grayscale-[0.5] scale-100 hover:scale-105"
-        }
-    }
+    const agentName = business?.agent_name || "Agent"
 
-    const agentDisplayName = business?.agent_name?.toUpperCase() || "AWAAZ"
+    /* State-driven orb styles */
+    const orbStyle = (() => {
+        if (agentState === "listening") return {
+            background: "radial-gradient(circle at 35% 35%, #22c55e, #16a34a)",
+            boxShadow: "0 0 80px rgba(34,197,94,0.35), 0 0 160px rgba(34,197,94,0.15)"
+        }
+        if (agentState === "thinking") return {
+            background: "radial-gradient(circle at 35% 35%, #3b82f6, #1d4ed8)",
+            boxShadow: "0 0 80px rgba(59,130,246,0.35), 0 0 160px rgba(59,130,246,0.15)"
+        }
+        if (agentState === "speaking") return {
+            background: `radial-gradient(circle at 35% 35%, #c8a034, #9d7a20)`,
+            boxShadow: `0 0 80px rgba(200,160,52,0.35), 0 0 160px rgba(200,160,52,0.12)`
+        }
+        if (agentState === "error") return {
+            background: "radial-gradient(circle at 35% 35%, #ef4444, #b91c1c)",
+            boxShadow: "0 0 60px rgba(239,68,68,0.3)"
+        }
+        return {
+            background: "radial-gradient(circle at 35% 35%, rgba(232,228,221,0.12), rgba(232,228,221,0.05))",
+            boxShadow: "0 0 0 1px rgba(232,228,221,0.08), inset 0 1px 0 rgba(232,228,221,0.06)"
+        }
+    })()
+
+    const stateLabel = {
+        idle: "Ready",
+        listening: "Listening…",
+        thinking: "Thinking…",
+        speaking: "Speaking…",
+        error: "Error",
+    }[agentState] ?? agentState
 
     return (
-        <div className="h-full lg:h-[calc(100vh-8rem)] flex flex-col max-w-[1600px] mx-auto px-4 relative overflow-hidden">
-            {/* Zen Glow Background */}
-            <div className={`absolute inset-0 -z-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] transition-colors duration-1000 opacity-10 ${agentState === 'listening' ? 'from-green-500/20' :
-                agentState === 'thinking' ? 'from-blue-500/20' :
-                    'from-primary/10'
-                } via-transparent to-transparent`} />
-
-            {/* No System Prompt Warning */}
+        <div style={{ fontFamily: I, color: T.text }}>
+            {/* No prompt warning */}
             {!businessLoading && !business?.system_prompt && (
-                <div className="shrink-0 mx-2 mt-3 mb-1 flex items-center gap-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-3.5 animate-in fade-in duration-500">
-                    <Sparkles className="h-5 w-5 text-amber-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black text-amber-500 uppercase tracking-wider">AI Prompt Not Configured</p>
-                        <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">Paste your Claude-generated master prompt in <span className="font-bold text-foreground">Dashboard → Business Settings → AI Agent Prompt</span></p>
-                    </div>
+                <div className="flex items-center gap-3 px-5 py-3.5 rounded-xl border mb-6"
+                    style={{ background: "rgba(200,160,52,0.06)", borderColor: "rgba(200,160,52,0.2)" }}>
+                    <Sparkles className="w-4 h-4 shrink-0" style={{ color: T.gold }} />
+                    <p className="text-[13px]" style={{ color: T.muted }}>
+                        <span className="font-semibold" style={{ color: T.gold }}>No system prompt configured.</span>
+                        {" "}Go to Settings → Agent Config to add a prompt.
+                    </p>
                 </div>
             )}
 
-            {/* Header / Config Bar */}
-            <div className="flex justify-between items-center py-4 lg:py-4 shrink-0 px-2">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-xl lg:text-2xl font-black tracking-tighter text-foreground/90">{agentDisplayName}<span className="text-primary">.AI</span></h1>
-                    <div className="flex items-center gap-2 bg-muted/40 px-3 py-1 rounded-full border border-border/50">
-                        <div className={`h-2 w-2 rounded-full ${agentState !== 'idle' ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                            {agentState === 'idle' ? 'Ready' : agentState}
-                        </span>
-                    </div>
+            {/* Page header */}
+            <div className="mb-8 flex items-end justify-between">
+                <div>
+                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Admin console</p>
+                    <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                        Agent Playground
+                    </h1>
+                    <p className="text-[14px] mt-1" style={{ color: T.muted }}>
+                        Live test of {agentName} — powered by Sarvam AI + Llama.
+                    </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 bg-primary/10 px-4 py-1.5 rounded-full border border-primary/20">
-                        <Zap className="h-3.5 w-3.5 text-primary" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                            {useCloudLLM ? (llmProvider === 'gemini' ? 'Gemini 1.5' : (llmProvider === 'xai' ? 'xAI Grok' : 'Groq LPU')) : 'Local Ollama'}
-                        </span>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)} className="rounded-full hover:bg-muted/50 h-10 w-10">
-                        <SettingsIcon className="h-5 w-5" />
-                    </Button>
+
+                <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full"
+                        style={{ background: agentState !== "idle" ? T.ok : "rgba(232,228,221,0.2)", boxShadow: agentState !== "idle" ? `0 0 8px ${T.ok}` : "none" }} />
+                    <span className="text-[12px] font-medium" style={{ color: agentState !== "idle" ? T.ok : T.muted }}>
+                        {stateLabel}
+                    </span>
                 </div>
             </div>
 
-            {/* Main Content: 50/50 Split Vertical Layout */}
-            <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:gap-6 pb-4 lg:pb-6">
+            {/* Main layout */}
+            <div className="grid lg:grid-cols-[420px_1fr] gap-5 h-[calc(100vh-18rem)] min-h-[440px]">
 
-                {/* Left Column: Vertical Interaction Section */}
-                <div className="flex-[0.6] lg:flex-1 flex flex-col items-center justify-center space-y-6 lg:space-y-10 bg-card/40 backdrop-blur-md rounded-[2rem] lg:rounded-[2.5rem] border border-border/40 relative overflow-hidden group shadow-2xl py-8 lg:py-0">
-                    <div className="absolute top-4 lg:top-6 left-6 lg:left-8 flex items-center gap-2 opacity-50">
-                        <Activity className="h-3 lg:h-4 w-3 lg:w-4" />
-                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-[0.2em]">Live Agent</span>
+                {/* LEFT — Orb panel */}
+                <div className="flex flex-col items-center justify-between rounded-xl border overflow-hidden py-10 px-8"
+                    style={{ background: T.surface, borderColor: T.border }}>
+
+                    {/* Agent info */}
+                    <div className="text-center">
+                        <div className="text-[10px] uppercase tracking-[0.2em] mb-1" style={{ color: T.muted }}>Active agent</div>
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "1.2rem", color: T.text, letterSpacing: "-0.02em" }}>
+                            {agentName}
+                        </div>
+                        <div className="text-[12px] mt-1" style={{ color: T.muted }}>
+                            {business?.name ?? "—"}
+                        </div>
                     </div>
 
-                    <div className="relative">
-                        {agentState !== 'idle' && (
-                            <div className="absolute inset-[-20%] rounded-full border-2 border-primary/10 animate-ping duration-1000" />
+                    {/* Orb */}
+                    <div className="relative flex items-center justify-center">
+                        {/* Ripple rings when active */}
+                        {agentState !== "idle" && agentState !== "error" && (
+                            <>
+                                <div className="absolute rounded-full animate-ping"
+                                    style={{ width: 220, height: 220, border: "1px solid rgba(232,228,221,0.06)", animationDuration: "2s" }} />
+                                <div className="absolute rounded-full animate-ping"
+                                    style={{ width: 260, height: 260, border: "1px solid rgba(232,228,221,0.04)", animationDuration: "2.5s", animationDelay: "0.4s" }} />
+                            </>
                         )}
 
                         <button
-                            onClick={agentState === 'idle' ? startListening : stopAgent}
-                            className={`h-48 w-48 lg:h-72 lg:w-72 rounded-full transition-all duration-1000 flex items-center justify-center relative z-10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ${getOrbAnimation()}`}
-                        >
-                            <div className="absolute inset-0 rounded-full bg-white/5 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity" />
-                            {agentState === "thinking" && <BrainCircuit className="h-16 w-16 lg:h-24 lg:w-24 text-white animate-pulse" />}
-                            {agentState === "listening" && <Mic className="h-16 w-16 lg:h-24 lg:w-24 text-white" />}
-                            {agentState === "speaking" && <Activity className="h-16 w-16 lg:h-24 lg:w-24 text-white" />}
-                            {agentState === "error" && <AlertCircle className="h-16 w-16 lg:h-24 lg:w-24 text-white" />}
-                            {agentState === "idle" && <Mic className="h-16 w-16 lg:h-24 lg:w-24 text-white opacity-80 group-hover:scale-110 transition-transform" />}
+                            onClick={agentState === "idle" ? startListening : stopAgent}
+                            className="relative z-10 rounded-full flex items-center justify-center transition-all duration-700"
+                            style={{ width: 180, height: 180, ...orbStyle }}>
+                            {agentState === "idle" && <Mic className="w-12 h-12" style={{ color: T.muted }} />}
+                            {agentState === "listening" && <Mic className="w-12 h-12 text-white" />}
+                            {agentState === "thinking" && <BrainCircuit className="w-12 h-12 text-white animate-pulse" />}
+                            {agentState === "speaking" && <Activity className="w-12 h-12 text-white" />}
+                            {agentState === "error" && <AlertCircle className="w-12 h-12 text-white" />}
                         </button>
                     </div>
 
-                    <div className="text-center space-y-2 lg:space-y-3 px-8">
-                        <h2 className="text-2xl lg:text-4xl font-black tracking-tighter text-foreground group-hover:tracking-normal transition-all duration-500">
-                            {agentState === 'idle' ? 'Start Call' : agentState === 'listening' ? 'Listening...' : 'Shubh.ai'}
-                        </h2>
-                        <p className="text-xs lg:text-sm text-muted-foreground font-medium max-w-[280px] leading-relaxed">
-                            {agentState === 'idle' ? 'Shubh is ready to assist your patients.' : 'Conversation in progress...'}
-                        </p>
-                    </div>
-
-                    <div className="h-16 flex items-center justify-center">
-                        {agentState !== 'idle' && (
-                            <Button variant="destructive" size="lg" onClick={stopAgent} className="rounded-full px-12 h-14 font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all group bg-red-600 hover:bg-red-500 border-none">
-                                <Square className="h-4 w-4 mr-3 fill-current group-hover:scale-90 transition-transform" />
+                    {/* CTA */}
+                    <div className="text-center space-y-4 w-full">
+                        {agentState === "idle" ? (
+                            <>
+                                <button onClick={startListening}
+                                    className="w-full py-3 rounded-xl text-[14px] font-semibold transition-all hover:opacity-85 active:scale-[0.98]"
+                                    style={{ background: T.goldBg, color: T.gold, border: `1px solid rgba(200,160,52,0.2)`, fontFamily: I }}>
+                                    Start Call
+                                </button>
+                                <p className="text-[11px]" style={{ color: T.muted }}>Microphone required</p>
+                            </>
+                        ) : (
+                            <button onClick={stopAgent}
+                                className="w-full py-3 rounded-xl text-[14px] font-semibold transition-all hover:opacity-85 active:scale-[0.98]"
+                                style={{ background: "rgba(184,92,53,0.12)", color: T.terra, border: "1px solid rgba(184,92,53,0.25)", fontFamily: I }}>
                                 End Session
-                            </Button>
+                            </button>
                         )}
-                        {agentState === 'idle' && (
-                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground/40 animate-pulse tracking-widest">
-                                <RefreshCw className="h-3 w-3" />
-                                Waiting for connection
-                            </div>
-                        )}
+
+                        {/* Stack info */}
+                        <div className="flex items-center justify-center gap-3 text-[11px]" style={{ color: "rgba(232,228,221,0.25)" }}>
+                            <span>Sarvam AI</span>
+                            <span>·</span>
+                            <span>Llama 3</span>
+                            <span>·</span>
+                            <span>Groq LPU</span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Right Column: Full Vertical Conversation Log */}
-                <div className="flex-1 flex flex-col bg-card/40 backdrop-blur-md rounded-[2.5rem] border border-border/40 overflow-hidden shadow-2xl relative">
-                    <div className="p-6 flex items-center justify-between border-b border-border/30 bg-card/60 px-8">
-                        <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                <MessageSquare className="h-4 w-4" />
-                            </div>
-                            <div>
-                                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground/60">Transcript</h2>
-                                <p className="text-[10px] text-muted-foreground font-bold">{displayMessages.length} Messages total</p>
-                            </div>
+                {/* RIGHT — Transcript */}
+                <div className="flex flex-col rounded-xl border overflow-hidden" style={{ background: T.surface, borderColor: T.border }}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: T.border }}>
+                        <div className="flex items-center gap-2.5">
+                            <MessageSquare className="w-4 h-4" style={{ color: T.muted }} />
+                            <span style={{ fontFamily: D, fontWeight: 600, fontSize: "0.95rem", color: T.text }}>Transcript</span>
+                            <span className="text-[12px]" style={{ color: T.muted }}>
+                                {displayMessages.length > 0 ? `${displayMessages.length} messages` : ""}
+                            </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" onClick={clearHistory} className="h-10 w-10 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
+                        {displayMessages.length > 0 && (
+                            <button onClick={clearHistory}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] transition-all hover:bg-[rgba(184,92,53,0.08)]"
+                                style={{ color: T.muted, fontFamily: I }}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Clear
+                            </button>
+                        )}
                     </div>
 
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth custom-scrollbar bg-slate-500/5">
+                    {/* Messages */}
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
                         {displayMessages.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
-                                <div className="h-24 w-24 rounded-[2rem] bg-muted/50 flex items-center justify-center border-2 border-dashed border-border/50">
-                                    <Database className="h-10 w-10" />
+                            <div className="h-full flex flex-col items-center justify-center text-center gap-4">
+                                <div className="w-10 h-10 rounded-xl border flex items-center justify-center" style={{ borderColor: T.border }}>
+                                    <MessageSquare className="w-5 h-5" style={{ color: "rgba(232,228,221,0.18)" }} />
                                 </div>
-                                <div className="space-y-2">
-                                    <p className="font-black uppercase text-xs tracking-[0.3em]">No Transcript Yet</p>
-                                    <p className="text-xs max-w-[220px] mx-auto font-medium leading-relaxed">Start speaking to see the live conversation appear here in real-time.</p>
+                                <div>
+                                    <p className="text-[13px] font-medium" style={{ color: T.muted }}>No transcript yet</p>
+                                    <p className="text-[12px] mt-0.5" style={{ color: "rgba(232,228,221,0.22)" }}>Start the call to see live conversation</p>
                                 </div>
                             </div>
                         ) : (
-                            displayMessages.map((msg, idx) => (
-                                <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} group animate-in slide-in-from-bottom-2 duration-300`}>
-                                    <div className={`max-w-[85%] rounded-[2rem] px-7 py-5 text-sm shadow-xl transition-all ${msg.role === 'user'
-                                        ? 'bg-primary text-primary-foreground rounded-tr-none shadow-primary/20'
-                                        : 'bg-background text-foreground rounded-tl-none border border-border/40 shadow-slate-200/50'
-                                        }`}>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className={`text-[10px] uppercase font-black tracking-widest ${msg.role === 'user' ? 'opacity-70' : 'text-primary'}`}>
-                                                {msg.role === 'user' ? 'PATIENT' : 'SHUBH'}
-                                            </span>
-                                            <span className="text-[10px] opacity-40 tabular-nums font-bold">
-                                                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
+                            displayMessages.map((msg, idx) => {
+                                const isUser = msg.role === "user"
+                                return (
+                                    <div key={idx} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                                        <div className="max-w-[80%] space-y-1">
+                                            <div className="text-[10px] uppercase tracking-[0.15em] px-1"
+                                                style={{ color: isUser ? T.gold : T.muted, textAlign: isUser ? "right" : "left" }}>
+                                                {isUser ? "Caller" : agentName}
+                                            </div>
+                                            <div className="px-4 py-3 rounded-xl text-[14px] leading-relaxed"
+                                                style={{
+                                                    background: isUser ? T.goldBg : "rgba(232,228,221,0.04)",
+                                                    border: `1px solid ${isUser ? "rgba(200,160,52,0.15)" : T.border}`,
+                                                    color: T.text,
+                                                    borderRadius: isUser ? "16px 4px 16px 16px" : "4px 16px 16px 16px"
+                                                }}>
+                                                {msg.content}
+                                            </div>
                                         </div>
-                                        <p className="text-base leading-relaxed font-semibold">
-                                            {msg.content}
-                                        </p>
                                     </div>
-                                </div>
-                            ))
+                                )
+                            })
                         )}
-                        {/* Status for thinking */}
-                        {agentState === 'thinking' && (
-                            <div className="flex flex-col items-start animate-in fade-in slide-in-from-left-4 duration-500">
-                                <div className="bg-background rounded-[1.5rem] rounded-tl-none px-6 py-4 border border-border/40 shadow-lg">
-                                    <div className="flex gap-1.5">
-                                        <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></span>
-                                        <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></span>
-                                        <span className="h-2 w-2 rounded-full bg-primary animate-bounce"></span>
-                                    </div>
+
+                        {/* Thinking indicator */}
+                        {agentState === "thinking" && (
+                            <div className="flex justify-start">
+                                <div className="px-4 py-3 rounded-xl border flex items-center gap-1.5"
+                                    style={{ background: "rgba(232,228,221,0.04)", borderColor: T.border, borderRadius: "4px 16px 16px 16px" }}>
+                                    <span className="w-2 h-2 rounded-full animate-bounce" style={{ background: T.muted, animationDelay: "0ms" }} />
+                                    <span className="w-2 h-2 rounded-full animate-bounce" style={{ background: T.muted, animationDelay: "150ms" }} />
+                                    <span className="w-2 h-2 rounded-full animate-bounce" style={{ background: T.muted, animationDelay: "300ms" }} />
                                 </div>
                             </div>
                         )}
@@ -244,133 +294,17 @@ export default function Playground() {
                 </div>
             </div>
 
-            {/* Error Message Toast-like */}
+            {/* Error toast */}
             {errorMsg && (
-                <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 bg-destructive text-destructive-foreground text-xs font-bold px-8 py-4 rounded-full shadow-[0_20px_50px_-10px_rgba(239,68,68,0.5)] flex items-center gap-4 animate-in slide-in-from-bottom-12">
-                    <AlertCircle className="h-5 w-5" />
-                    {errorMsg}
-                    <Button variant="ghost" size="sm" onClick={() => window.location.reload()} className="h-6 px-3 bg-white/20 hover:bg-white/30 rounded-full text-[10px] uppercase font-black">Retry</Button>
-                </div>
-            )}
-
-            {/* Settings Overlay */}
-            {showSettings && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-background/90 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setShowSettings(false)} />
-                    <Card className="w-full max-w-xl relative z-10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] border-primary/20 animate-in zoom-in-95 duration-300 overflow-hidden rounded-[3rem]">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-blue-500 to-purple-600" />
-                        <CardContent className="p-10 space-y-10 pt-14">
-                            <div className="flex justify-between items-start">
-                                <div className="space-y-2">
-                                    <h3 className="text-3xl font-black tracking-tight">AI Settings</h3>
-                                    <p className="text-muted-foreground text-sm font-medium">Configure Shubh's underlying intelligence.</p>
-                                </div>
-                                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted/80 h-10 w-10" onClick={() => setShowSettings(false)}>
-                                    <X className="h-6 w-6" />
-                                </Button>
-                            </div>
-
-                            <div className="grid gap-8">
-                                <div className="space-y-4">
-                                    <p className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em] pl-1 text-center">Backend Provider</p>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button
-                                            onClick={() => { setUseCloudLLM(true); setLlmProvider('gemini'); }}
-                                            className={`p-6 rounded-[2rem] border-2 transition-all text-left flex flex-col gap-3 ${useCloudLLM && llmProvider === 'gemini'
-                                                ? 'border-primary bg-primary/5 shadow-2xl ring-4 ring-primary/10'
-                                                : 'border-border/60 hover:border-primary/40'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <BrainCircuit className={`h-6 w-6 ${useCloudLLM && llmProvider === 'gemini' ? 'text-primary' : 'text-muted-foreground'}`} />
-                                                {useCloudLLM && llmProvider === 'gemini' && <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />}
-                                            </div>
-                                            <div>
-                                                <p className="font-black text-lg">Gemini 1.5</p>
-                                                <p className="text-[11px] text-muted-foreground font-bold">Best Free Multilingual</p>
-                                            </div>
-                                        </button>
-
-                                        <button
-                                            onClick={() => { setUseCloudLLM(true); setLlmProvider('xai'); }}
-                                            className={`p-6 rounded-[2rem] border-2 transition-all text-left flex flex-col gap-3 ${useCloudLLM && llmProvider === 'xai'
-                                                ? 'border-primary bg-primary/5 shadow-2xl ring-4 ring-primary/10'
-                                                : 'border-border/60 hover:border-primary/40'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <Zap className={`h-6 w-6 ${useCloudLLM && llmProvider === 'xai' ? 'text-primary' : 'text-muted-foreground'}`} />
-                                                {useCloudLLM && llmProvider === 'xai' && <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />}
-                                            </div>
-                                            <div>
-                                                <p className="font-black text-lg">xAI Grok</p>
-                                                <p className="text-[11px] text-muted-foreground font-bold">Premium Multilingual</p>
-                                            </div>
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <button
-                                            onClick={() => { setUseCloudLLM(true); setLlmProvider('groq'); }}
-                                            className={`p-6 rounded-[2rem] border-2 transition-all text-left flex flex-col gap-3 ${useCloudLLM && llmProvider === 'groq'
-                                                ? 'border-primary bg-primary/5 shadow-2xl ring-4 ring-primary/10'
-                                                : 'border-border/60 hover:border-primary/40'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <Activity className={`h-6 w-6 ${useCloudLLM && llmProvider === 'groq' ? 'text-primary' : 'text-muted-foreground'}`} />
-                                                {useCloudLLM && llmProvider === 'groq' && <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />}
-                                            </div>
-                                            <div>
-                                                <p className="font-black text-lg">Groq LPU</p>
-                                                <p className="text-[11px] text-muted-foreground font-bold">Ultra Low Latency</p>
-                                            </div>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-6 pt-8 border-t border-border/30">
-                                    <div className="flex items-center justify-between bg-muted/30 p-5 rounded-3xl border border-border/50">
-                                        <div className="space-y-1">
-                                            <p className="text-base font-black">Local Offline Mode</p>
-                                            <p className="text-xs text-muted-foreground font-semibold">Run on your machine via Ollama</p>
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            className="h-6 w-6 rounded-lg accent-primary cursor-pointer"
-                                            checked={!useCloudLLM}
-                                            onChange={(e) => setUseCloudLLM(!e.target.checked)}
-                                        />
-                                    </div>
-
-                                    {!useCloudLLM && (
-                                        <div className="animate-in slide-in-from-top-4 duration-500">
-                                            <label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest block mb-3 pl-2">Select Ollama Model</label>
-                                            <Select value={model} onChange={(e: any) => setModel(e.target.value)} className="h-14 rounded-2xl font-bold border-2">
-                                                <option value="qwen2.5:7b">Qwen 2.5 (7b)</option>
-                                                <option value="llama3.1">Llama 3.1</option>
-                                            </Select>
-                                        </div>
-                                    )}
-
-                                    <div className="bg-primary/5 p-6 rounded-[2rem] border border-primary/20 flex items-start gap-4 shadow-inner">
-                                        <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                            <Activity className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[11px] font-black uppercase text-primary tracking-[0.2em]">Active Voice Engine</p>
-                                            <p className="text-lg font-black mt-1">Shubh (Bulbul:v3)</p>
-                                            <p className="text-xs text-muted-foreground font-semibold mt-0.5">Premium 48kHz HD Audio</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <Button className="w-full h-16 text-xl rounded-[2rem] font-black shadow-2xl hover:scale-[1.02] transition-transform active:scale-95" onClick={() => setShowSettings(false)}>
-                                APPLY CHANGES
-                            </Button>
-                        </CardContent>
-                    </Card>
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl border"
+                    style={{ background: "rgba(184,92,53,0.12)", borderColor: "rgba(184,92,53,0.3)", color: T.terra, fontFamily: I, backdropFilter: "blur(12px)" }}>
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="text-[13px]">{errorMsg}</span>
+                    <button onClick={() => window.location.reload()}
+                        className="ml-2 text-[11px] px-2.5 py-1 rounded-md transition-all"
+                        style={{ background: "rgba(184,92,53,0.12)", border: "1px solid rgba(184,92,53,0.2)" }}>
+                        Retry
+                    </button>
                 </div>
             )}
         </div>

@@ -1,197 +1,173 @@
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { useCallsData } from "@/hooks/useCallsData"
 import { useAppointmentsData } from "@/hooks/useAppointmentsData"
-import { PhoneOutgoing, CalendarCheck, CheckCircle2, IndianRupee, Copy, PhoneCall, TrendingUp } from "lucide-react"
+import { Copy, PhoneOutgoing } from "lucide-react"
 import { toast } from "sonner"
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts"
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { format, subDays, parseISO } from "date-fns"
 
-const C = {
-  gold: "#c9a227",
-  goldLight: "rgba(201,162,39,0.12)",
-  goldBorder: "rgba(201,162,39,0.18)",
-  text: "#f0ede8",
-  textMuted: "rgba(240,237,232,0.4)",
-  surface: "#0f0f0f",
-  elevated: "#141414",
-  border: "rgba(255,255,255,0.06)",
+const D = "'Syne', sans-serif"
+const I = "'Inter', sans-serif"
+const T = {
+    text: "#e8e4dd",
+    muted: "rgba(232,228,221,0.38)",
+    ghost: "rgba(232,228,221,0.1)",
+    border: "rgba(232,228,221,0.07)",
+    borderStrong: "rgba(232,228,221,0.12)",
+    gold: "#c8a034",
+    goldBg: "rgba(200,160,52,0.08)",
+    ok: "#4aaa78",
+    surface: "#0d0d0d",
 }
 
-function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="mb-10">
-      <p className="text-[11px] tracking-[0.25em] uppercase mb-2" style={{ color: C.textMuted }}>
-        Owner Portal
-      </p>
-      <h1 className="text-[2.2rem] leading-tight" style={{ fontFamily: "'Instrument Serif', serif", color: C.text }}>
-        {title}
-      </h1>
-      <p className="text-[14px] mt-1" style={{ color: C.textMuted }}>{subtitle}</p>
-    </div>
-  )
-}
-
-function MetricCard({ title, value, icon: Icon, delta }: { title: string; value: string | number; icon: any; delta?: string }) {
-  return (
-    <div className="rounded-2xl p-6 border transition-colors hover:border-[rgba(201,162,39,0.2)]"
-      style={{ background: C.surface, borderColor: C.border }}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: C.goldLight }}>
-          <Icon className="w-4 h-4" style={{ color: C.gold }} />
+function Spinner() {
+    return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="w-5 h-5 rounded-full border border-t-[#c8a034] border-[rgba(232,228,221,0.08)] animate-spin" />
         </div>
-        {delta && (
-          <span className="text-[11px] font-medium flex items-center gap-1 text-emerald-400">
-            <TrendingUp className="w-3 h-3" /> {delta}
-          </span>
-        )}
-      </div>
-      <div className="text-[2rem] font-bold leading-none mb-1.5 tabular-nums" style={{ color: C.text }}>{value}</div>
-      <div className="text-[12px]" style={{ color: C.textMuted }}>{title}</div>
-    </div>
-  )
+    )
 }
 
 export default function Dashboard() {
-  const { business, loading: bizLoading } = useBusinessData()
-  const { calls, activeCalls, loading: callsLoading } = useCallsData(business?.id)
-  const { todayCount, loading: aptLoading } = useAppointmentsData(business?.id)
+    const { business, loading: bl } = useBusinessData()
+    const { calls, activeCalls, loading: cl } = useCallsData(business?.id)
+    const { todayCount, loading: al } = useAppointmentsData(business?.id)
 
-  if (bizLoading || callsLoading || aptLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-2 border-t-[#c9a227] border-white/10 animate-spin" />
-          <span className="text-[13px]" style={{ color: "rgba(240,237,232,0.3)" }}>Loading your dashboard…</span>
+    if (bl || cl || al) return <Spinner />
+    if (!business) return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <p style={{ color: T.muted, fontFamily: I }}>No business profile found.</p>
         </div>
-      </div>
     )
-  }
 
-  if (!business) {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    const callsToday = calls.filter(c => new Date(c.created_at) >= todayStart)
+    const completed = callsToday.filter(c => ["booked", "transferred", "failed"].includes(c.outcome))
+    const successful = completed.filter(c => ["booked", "transferred"].includes(c.outcome))
+    const rate = completed.length > 0 ? Math.round((successful.length / completed.length) * 100) : 0
+    const revenue = todayCount * 500
+    const publicUrl = `${window.location.origin}/call/${business.slug}`
+
+    const chartData = Array.from({ length: 14 }).map((_, i) => {
+        const d = subDays(new Date(), 13 - i)
+        const ds = format(d, "MMM d")
+        return { d: ds, v: calls.filter(c => format(parseISO(c.created_at), "MMM d") === ds).length }
+    })
+
+    const metrics = [
+        { label: "Calls today", value: callsToday.length, big: true },
+        { label: "Success rate", value: `${rate}%`, big: false },
+        { label: "Booked", value: todayCount, big: false },
+        { label: "Est. revenue", value: `₹${revenue.toLocaleString("en-IN")}`, big: false },
+    ]
+
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="text-[1.5rem] mb-2" style={{ fontFamily: "'Instrument Serif', serif", color: "rgba(240,237,232,0.4)" }}>
-            No business profile found.
-          </div>
-          <p className="text-[13px]" style={{ color: "rgba(240,237,232,0.25)" }}>
-            Complete your setup in Settings to get started.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-  const callsToday = calls.filter(c => new Date(c.created_at) >= todayStart)
-  const completedToday = callsToday.filter(c => ["booked", "transferred", "failed"].includes(c.outcome))
-  const successfulToday = completedToday.filter(c => ["booked", "transferred"].includes(c.outcome))
-  const successRate = completedToday.length > 0 ? Math.round((successfulToday.length / completedToday.length) * 100) : 0
-  const revenue = todayCount * 500
-  const publicUrl = `${window.location.origin}/call/${business.slug}`
-
-  const last7Days = Array.from({ length: 7 }).map((_, i) => subDays(new Date(), 6 - i))
-  const chartData = last7Days.map(date => {
-    const ds = format(date, "MMM dd")
-    return { name: ds, calls: calls.filter(c => format(parseISO(c.created_at), "MMM dd") === ds).length }
-  })
-
-  return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-      <PageHeader
-        title={`${business.name}`}
-        subtitle="Your AI receptionist performance at a glance."
-      />
-
-      {/* Agent status / voice link banner */}
-      <div className="rounded-2xl border p-5 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-        style={{ background: C.elevated, borderColor: C.goldBorder }}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(201,162,39,0.1)" }}>
-            <PhoneCall className="w-4 h-4" style={{ color: C.gold }} />
-          </div>
-          <div>
-            <p className="text-[13px] font-medium" style={{ color: C.text }}>Your Public Voice Link</p>
-            <p className="text-[11px]" style={{ color: C.textMuted }}>Share with customers to connect to {business.agent_name}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl px-3 py-2 border text-[12px] font-mono"
-          style={{ background: "rgba(255,255,255,0.03)", borderColor: C.border, color: C.textMuted }}>
-          <span className="truncate max-w-[220px]">{publicUrl}</span>
-          <button onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Link copied!") }}
-            className="ml-1 hover:text-[#c9a227] transition-colors">
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[12px]" style={{ color: "rgba(240,237,232,0.4)" }}>
-            {business.is_active ? "Agent Online" : "Agent Offline"}
-            {activeCalls.length > 0 && ` · ${activeCalls.length} live`}
-          </span>
-        </div>
-      </div>
-
-      {/* Active calls */}
-      {activeCalls.length > 0 && (
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {activeCalls.map(call => (
-            <div key={call.id} className="rounded-2xl p-4 border flex items-center justify-between animate-pulse"
-              style={{ background: "rgba(201,162,39,0.06)", borderColor: "rgba(201,162,39,0.2)" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(201,162,39,0.15)" }}>
-                  <PhoneOutgoing className="w-4 h-4" style={{ color: C.gold }} />
-                </div>
+        <div style={{ fontFamily: I }}>
+            {/* Page header */}
+            <div className="mb-8 flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[13px] font-medium" style={{ color: C.text }}>
-                    {call.customer_phone?.replace(/(\d{4})$/, "XXXX") ?? "Unknown"}
-                  </p>
-                  <p className="text-[11px] capitalize" style={{ color: C.gold }}>{call.outcome}…</p>
+                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Owner dashboard</p>
+                    <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                        {business.name}
+                    </h1>
                 </div>
-              </div>
-              <span className="text-[15px] font-mono tabular-nums" style={{ color: C.textMuted }}>
-                {Math.floor((call.duration_seconds ?? 0) / 60)}:{((call.duration_seconds ?? 0) % 60).toString().padStart(2, "0")}
-              </span>
+                <div className="flex items-center gap-2 mt-2 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[12px]" style={{ color: T.ok, fontFamily: I }}>
+                        {business.is_active ? "Live" : "Offline"}
+                        {activeCalls.length > 0 && ` · ${activeCalls.length} active`}
+                    </span>
+                </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <MetricCard title="Calls Today" value={callsToday.length} icon={PhoneOutgoing} />
-        <MetricCard title="Booked Today" value={todayCount} icon={CalendarCheck} />
-        <MetricCard title="Success Rate" value={`${successRate}%`} icon={CheckCircle2} />
-        <MetricCard title="Revenue (Est.)" value={`₹${revenue.toLocaleString("en-IN")}`} icon={IndianRupee} />
-      </div>
+            {/* Metric strip — NO cards, just a row divided by lines */}
+            <div className="flex divide-x mb-10 overflow-hidden rounded-xl border"
+                style={{ borderColor: T.border, divideColor: T.border, background: T.surface }}>
+                {metrics.map((m, i) => (
+                    <div key={i} className="flex-1 px-6 py-6 min-w-0">
+                        <div style={{
+                            fontFamily: D, fontWeight: 700, color: T.text,
+                            fontSize: "clamp(1.8rem, 3.5vw, 3rem)",
+                            letterSpacing: "-0.04em", lineHeight: 1
+                        }}>
+                            {m.value}
+                        </div>
+                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>
+                            {m.label}
+                        </div>
+                    </div>
+                ))}
+            </div>
 
-      {/* Chart */}
-      <div className="rounded-2xl border p-6" style={{ background: C.surface, borderColor: C.border }}>
-        <div className="mb-6">
-          <h2 className="text-[16px] font-semibold" style={{ color: C.text }}>Call Volume — Last 7 Days</h2>
-          <p className="text-[12px] mt-0.5" style={{ color: C.textMuted }}>Daily call traffic handled by your AI agent.</p>
+            {/* Voice link */}
+            <div className="flex items-center justify-between px-5 py-4 rounded-xl mb-8 border"
+                style={{ background: T.goldBg, borderColor: "rgba(200,160,52,0.15)" }}>
+                <div>
+                    <div className="text-[11px] uppercase tracking-[0.15em] mb-1" style={{ color: "rgba(200,160,52,0.6)" }}>Your public voice link</div>
+                    <code className="text-[13px]" style={{ color: T.gold, fontFamily: "monospace" }}>{publicUrl}</code>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Copied!") }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium transition-all hover:opacity-80"
+                    style={{ background: T.goldBg, color: T.gold, border: "1px solid rgba(200,160,52,0.2)", fontFamily: I }}>
+                    <Copy className="w-3.5 h-3.5" /> Copy
+                </button>
+            </div>
+
+            {/* Active calls */}
+            {activeCalls.length > 0 && (
+                <div className="mb-8">
+                    <p className="text-[11px] uppercase tracking-[0.15em] mb-3" style={{ color: T.muted }}>Active calls</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {activeCalls.map(call => (
+                            <div key={call.id} className="flex items-center justify-between px-5 py-4 rounded-xl border"
+                                style={{ background: "rgba(200,160,52,0.05)", borderColor: "rgba(200,160,52,0.15)" }}>
+                                <div className="flex items-center gap-3">
+                                    <PhoneOutgoing className="w-4 h-4" style={{ color: T.gold }} />
+                                    <div>
+                                        <div className="text-[14px] font-medium" style={{ color: T.text }}>
+                                            {call.customer_phone?.replace(/(\d{4})$/, "XXXX") ?? "Unknown"}
+                                        </div>
+                                        <div className="text-[11px] capitalize" style={{ color: T.gold }}>{call.outcome}…</div>
+                                    </div>
+                                </div>
+                                <span className="text-[15px] font-mono tabular-nums" style={{ color: T.muted }}>
+                                    {Math.floor((call.duration_seconds ?? 0) / 60)}:{((call.duration_seconds ?? 0) % 60).toString().padStart(2, "0")}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Chart */}
+            <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b" style={{ borderColor: T.border }}>
+                    <div>
+                        <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Call volume</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Last 14 days</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-20 h-px" style={{ background: T.gold }} />
+                        <span className="text-[11px]" style={{ color: T.muted }}>Total calls</span>
+                    </div>
+                </div>
+                <div className="px-2 pt-2 pb-4 h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 8, right: 16, left: -24, bottom: 0 }}>
+                            <XAxis dataKey="d" axisLine={false} tickLine={false}
+                                tick={{ fill: "rgba(232,228,221,0.25)", fontSize: 10, fontFamily: I }} dy={8} />
+                            <YAxis axisLine={false} tickLine={false}
+                                tick={{ fill: "rgba(232,228,221,0.25)", fontSize: 10, fontFamily: I }} />
+                            <Tooltip contentStyle={{
+                                background: "#111", border: "1px solid rgba(232,228,221,0.1)",
+                                borderRadius: "8px", color: T.text, fontSize: 12, fontFamily: I
+                            }} itemStyle={{ color: T.gold }} cursor={{ stroke: "rgba(232,228,221,0.07)" }} />
+                            <Line type="monotone" dataKey="v" stroke={T.gold} strokeWidth={1.5}
+                                dot={false} activeDot={{ r: 3, fill: T.gold, strokeWidth: 0 }} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
         </div>
-        <div className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#c9a227" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#c9a227" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "rgba(240,237,232,0.3)", fontSize: 11 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "rgba(240,237,232,0.3)", fontSize: 11 }} />
-              <RechartsTooltip
-                contentStyle={{ background: "#141414", border: "1px solid rgba(201,162,39,0.2)", borderRadius: "12px", color: "#f0ede8", fontSize: 13 }}
-                itemStyle={{ color: "#c9a227" }}
-              />
-              <Area type="monotone" dataKey="calls" stroke="#c9a227" strokeWidth={2} fill="url(#goldGrad)" dot={{ fill: "#c9a227", r: 3, strokeWidth: 0 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  )
+    )
 }
