@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-    const { session, loading, userRole, profile } = useAuth()
+    const { session, loading, userRole } = useAuth()
 
     // Wait until initial session and profile are resolved
     if (loading) {

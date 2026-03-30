@@ -1,5 +1,3 @@
-import { TrendingUp, IndianRupee } from "lucide-react"
-
 const D = "'Syne', sans-serif"
 const I = "'Inter', sans-serif"
 const T = {

@@ -40,8 +40,8 @@ export default function AdminOwnersList() {
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
                 {/* Col headers */}
                 <div className="grid px-5 py-3 border-b text-[10px] uppercase tracking-[0.18em] font-medium"
-                    style={{ gridTemplateColumns: "1.5fr 1fr 110px 120px 48px", background: T.surface, borderColor: T.border, color: T.muted }}>
-                    <span>Owner</span><span>Business</span><span>Industry</span><span>Joined</span><span />
+                    style={{ gridTemplateColumns: "1.4fr 1.2fr 1fr 100px 110px 48px", background: T.surface, borderColor: T.border, color: T.muted }}>
+                    <span>Owner</span><span>Business</span><span>Address / City</span><span>Industry</span><span>Joined</span><span />
                 </div>
 
                 {owners.length === 0 ? (
@@ -54,14 +54,35 @@ export default function AdminOwnersList() {
                     return (
                         <div key={owner.id}
                             className="grid px-5 py-4 border-b last:border-0 transition-colors hover:bg-[rgba(232,228,221,0.015)]"
-                            style={{ gridTemplateColumns: "1.5fr 1fr 110px 120px 48px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                            style={{ gridTemplateColumns: "1.4fr 1.2fr 1fr 100px 110px 48px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                            {/* Owner */}
                             <div>
                                 <div className="text-[14px] font-medium" style={{ color: T.text }}>{owner.full_name || "—"}</div>
                                 <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>{owner.email}</div>
+                                {biz?.phone && (
+                                    <div className="text-[11px] mt-0.5" style={{ color: T.muted }}>{biz.phone}</div>
+                                )}
                             </div>
-                            <div className="self-center text-[13px]" style={{ color: biz?.name ? T.text : T.muted }}>
-                                {biz?.name ?? <span style={{ fontStyle: "italic" }}>Unconfigured</span>}
+                            {/* Business name */}
+                            <div className="self-center min-w-0 pr-3">
+                                <div className="text-[13px] truncate" style={{ color: biz?.name ? T.text : T.muted }}>
+                                    {biz?.name ?? <span style={{ fontStyle: "italic" }}>Unconfigured</span>}
+                                </div>
+                                {biz?.slug && (
+                                    <div className="text-[11px] mt-0.5 truncate" style={{ color: T.muted }}>/{biz.slug}</div>
+                                )}
                             </div>
+                            {/* Address / City */}
+                            <div className="self-center min-w-0 pr-3">
+                                {biz?.address ? (
+                                    <div className="text-[12px] truncate" style={{ color: T.muted }}>{biz.address}</div>
+                                ) : biz?.city ? (
+                                    <div className="text-[12px]" style={{ color: T.muted }}>{biz.city}</div>
+                                ) : (
+                                    <div className="text-[12px]" style={{ color: "rgba(232,228,221,0.15)", fontStyle: "italic" }}>—</div>
+                                )}
+                            </div>
+                            {/* Industry */}
                             <div className="self-center">
                                 {biz?.industry && (
                                     <span className="text-[11px] px-2.5 py-1 rounded-md capitalize" style={{ color: T.gold, background: indBg }}>

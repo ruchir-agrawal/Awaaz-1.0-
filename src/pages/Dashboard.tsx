@@ -1,7 +1,7 @@
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { useCallsData } from "@/hooks/useCallsData"
 import { useAppointmentsData } from "@/hooks/useAppointmentsData"
-import { Copy, PhoneOutgoing } from "lucide-react"
+import { Copy, PhoneOutgoing, X } from "lucide-react"
 import { toast } from "sonner"
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { format, subDays, parseISO } from "date-fns"
@@ -30,7 +30,7 @@ function Spinner() {
 
 export default function Dashboard() {
     const { business, loading: bl } = useBusinessData()
-    const { calls, activeCalls, loading: cl } = useCallsData(business?.id)
+    const { calls, activeCalls, loading: cl, resolveCall } = useCallsData(business?.id)
     const { todayCount, loading: al } = useAppointmentsData(business?.id)
 
     if (bl || cl || al) return <Spinner />
@@ -82,7 +82,7 @@ export default function Dashboard() {
 
             {/* Metric strip — NO cards, just a row divided by lines */}
             <div className="flex divide-x mb-10 overflow-hidden rounded-xl border"
-                style={{ borderColor: T.border, divideColor: T.border, background: T.surface }}>
+                style={{ borderColor: T.border, background: T.surface }}>
                 {metrics.map((m, i) => (
                     <div key={i} className="flex-1 px-6 py-6 min-w-0">
                         <div style={{
@@ -127,12 +127,22 @@ export default function Dashboard() {
                                         <div className="text-[14px] font-medium" style={{ color: T.text }}>
                                             {call.customer_phone?.replace(/(\d{4})$/, "XXXX") ?? "Unknown"}
                                         </div>
-                                        <div className="text-[11px] capitalize" style={{ color: T.gold }}>{call.outcome}…</div>
+                                        <div className="text-[11px] capitalize" style={{ color: T.gold }}>In progress…</div>
                                     </div>
                                 </div>
-                                <span className="text-[15px] font-mono tabular-nums" style={{ color: T.muted }}>
-                                    {Math.floor((call.duration_seconds ?? 0) / 60)}:{((call.duration_seconds ?? 0) % 60).toString().padStart(2, "0")}
-                                </span>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[15px] font-mono tabular-nums" style={{ color: T.muted }}>
+                                        {Math.floor((call.duration_seconds ?? 0) / 60)}:{((call.duration_seconds ?? 0) % 60).toString().padStart(2, "0")}
+                                    </span>
+                                    {/* Dismiss stuck in-progress calls */}
+                                    <button
+                                        onClick={() => resolveCall(call.id)}
+                                        title="Dismiss stuck call"
+                                        className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:bg-[rgba(232,228,221,0.1)]"
+                                        style={{ border: "1px solid rgba(232,228,221,0.12)" }}>
+                                        <X className="w-3 h-3" style={{ color: T.muted }} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>

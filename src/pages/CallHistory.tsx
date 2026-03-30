@@ -3,7 +3,7 @@ import { useBusinessData } from "@/hooks/useBusinessData"
 import { useCallsData } from "@/hooks/useCallsData"
 import type { Call } from "@/types/database"
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns"
-import { Search, X, FileText } from "lucide-react"
+import { Search, X, FileText, Trash2, CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const D = "'Syne', sans-serif"
@@ -12,6 +12,7 @@ const T = {
     text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.1)",
     border: "rgba(232,228,221,0.07)", borderStrong: "rgba(232,228,221,0.12)",
     gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)", surface: "#0d0d0d",
+    red: "#c0392b", redBg: "rgba(192,57,43,0.08)",
 }
 
 const OUTCOMES: Record<string, { label: string; color: string; bg: string }> = {
@@ -24,17 +25,38 @@ const OUTCOMES: Record<string, { label: string; color: string; bg: string }> = {
 }
 
 const fmtDur = (s: number) => !s ? "—" : s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
-const mask = (p: string | null) => !p ? "Unknown" : p.replace(/(\d{4})$/, "XXXX")
+const mask = (p: string | null) => !p ? null : p.replace(/(\d{4})$/, "XXXX")
+
+// Extract caller name from transcript if available
+function extractCallerName(call: Call): string {
+    const phone = mask(call.customer_phone)
+
+    if (!call.transcript) return phone ?? "Unknown"
+
+    // Match patterns like "Great, Ruchir!" or "Perfect, Babulal!" or "Thanks, Name"
+    const nameMatch = call.transcript.match(
+        /(?:Great|Perfect|Alright|Thanks|Noted|Wonderful)[,!]?\s+([A-Z][a-z]{1,20})(?:[,!. ]|$)/
+    )
+    if (nameMatch?.[1]) {
+        // Show name + masked phone if available
+        return phone ? `${nameMatch[1]} (${phone})` : nameMatch[1]
+    }
+
+    // Fallback to phone or Unknown
+    return phone ?? "Unknown"
+}
 
 export default function CallHistory() {
     const { business } = useBusinessData()
-    const { calls, loading } = useCallsData(business?.id)
+    const { calls, loading, deleteCall } = useCallsData(business?.id)
     const [q, setQ] = useState("")
     const [outcome, setOutcome] = useState("all")
     const [from, setFrom] = useState("")
     const [to, setTo] = useState("")
     const [sort, setSort] = useState<"desc" | "asc">("desc")
     const [selected, setSelected] = useState<Call | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
     const filtered = calls
         .filter(c => {
@@ -52,6 +74,21 @@ export default function CallHistory() {
             ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             : new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
+    const handleDelete = async (e: React.MouseEvent, callId: string) => {
+        e.stopPropagation()
+        if (confirmDeleteId !== callId) {
+            // First click: ask for confirmation
+            setConfirmDeleteId(callId)
+            return
+        }
+        // Second click: execute
+        setDeletingId(callId)
+        setConfirmDeleteId(null)
+        if (selected?.id === callId) setSelected(null)
+        await deleteCall(callId)
+        setDeletingId(null)
+    }
+
     if (loading) return (
         <div className="flex items-center justify-center min-h-[60vh]">
             <div className="w-5 h-5 rounded-full border border-t-[#c8a034] border-[rgba(232,228,221,0.08)] animate-spin" />
@@ -61,7 +98,7 @@ export default function CallHistory() {
     const inputCls = "bg-transparent border rounded-lg px-3 py-2 text-[13px] outline-none transition-all focus:border-[rgba(200,160,52,0.3)]"
 
     return (
-        <div style={{ fontFamily: I }}>
+        <div style={{ fontFamily: I }} onClick={() => setConfirmDeleteId(null)}>
             {/* Header */}
             <div className="mb-8">
                 <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Owner portal</p>
@@ -72,7 +109,7 @@ export default function CallHistory() {
             </div>
 
             {/* Summary counts */}
-            <div className="flex gap-1 mb-6">
+            <div className="flex gap-1 flex-wrap mb-6">
                 {Object.entries(OUTCOMES).map(([k, v]) => {
                     const count = calls.filter(c => c.outcome === k).length
                     if (!count) return null
@@ -102,7 +139,7 @@ export default function CallHistory() {
             <div className="flex flex-wrap items-center gap-2 mb-5">
                 <div className="relative flex-1 min-w-[180px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: T.muted }} />
-                    <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by phone or transcript…"
+                    <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, phone or transcript…"
                         className={cn(inputCls, "pl-9 w-full")} style={{ borderColor: T.border, color: T.text }} />
                 </div>
                 <input type="date" value={from} onChange={e => setFrom(e.target.value)}
@@ -118,10 +155,10 @@ export default function CallHistory() {
 
             {/* Table */}
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
-                {/* Header */}
+                {/* Header row */}
                 <div className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
-                    style={{ gridTemplateColumns: "1fr 130px 90px 110px 80px 40px", background: T.surface, borderColor: T.border, color: T.muted }}>
-                    <span>Caller</span><span>When</span><span>Duration</span><span>Outcome</span><span>Source</span><span />
+                    style={{ gridTemplateColumns: "1fr 130px 90px 110px 80px 80px", background: T.surface, borderColor: T.border, color: T.muted }}>
+                    <span>Caller</span><span>When</span><span>Duration</span><span>Outcome</span><span>Source</span><span className="text-center">Actions</span>
                 </div>
 
                 {filtered.length === 0 ? (
@@ -131,12 +168,16 @@ export default function CallHistory() {
                 ) : (
                     filtered.map((call, idx) => {
                         const os = OUTCOMES[call.outcome] ?? { label: call.outcome, color: T.muted, bg: "transparent" }
+                        const callerLabel = extractCallerName(call)
+                        const isConfirming = confirmDeleteId === call.id
+                        const isDeleting = deletingId === call.id
+
                         return (
                             <div key={call.id} onClick={() => setSelected(call)}
                                 className="grid px-5 py-4 border-b cursor-pointer transition-colors hover:bg-[rgba(232,228,221,0.02)]"
-                                style={{ gridTemplateColumns: "1fr 130px 90px 110px 80px 40px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                                style={{ gridTemplateColumns: "1fr 130px 90px 110px 80px 80px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
                                 <div>
-                                    <div className="text-[14px] font-medium" style={{ color: T.text }}>{mask(call.customer_phone)}</div>
+                                    <div className="text-[14px] font-medium" style={{ color: T.text }}>{callerLabel}</div>
                                 </div>
                                 <div className="text-[13px] self-center" style={{ color: T.muted }}>
                                     {format(parseISO(call.created_at), "MMM d, HH:mm")}
@@ -149,8 +190,32 @@ export default function CallHistory() {
                                         style={{ color: os.color, background: os.bg }}>{os.label}</span>
                                 </div>
                                 <div className="text-[12px] self-center capitalize" style={{ color: T.muted }}>{call.call_source}</div>
-                                <div className="self-center flex justify-center">
-                                    <FileText className="w-3.5 h-3.5 opacity-30 hover:opacity-70 transition-opacity" style={{ color: T.text }} />
+
+                                {/* Actions */}
+                                <div className="self-center flex items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
+                                    {/* View transcript */}
+                                    <button onClick={() => setSelected(call)} title="View transcript"
+                                        className="p-1.5 rounded-md transition-all hover:bg-[rgba(232,228,221,0.06)]">
+                                        <FileText className="w-3.5 h-3.5 opacity-40 hover:opacity-80 transition-opacity" style={{ color: T.text }} />
+                                    </button>
+
+                                    {/* Delete */}
+                                    <button
+                                        onClick={e => handleDelete(e, call.id)}
+                                        disabled={isDeleting}
+                                        title={isConfirming ? "Click again to confirm delete" : "Delete call log"}
+                                        className="p-1.5 rounded-md transition-all"
+                                        style={{
+                                            background: isConfirming ? T.redBg : "transparent",
+                                            border: isConfirming ? `1px solid ${T.red}40` : "1px solid transparent",
+                                        }}>
+                                        {isDeleting
+                                            ? <div className="w-3.5 h-3.5 rounded-full border border-t-[#c0392b] border-[rgba(192,57,43,0.2)] animate-spin" />
+                                            : isConfirming
+                                                ? <CheckCircle className="w-3.5 h-3.5" style={{ color: T.red }} />
+                                                : <Trash2 className="w-3.5 h-3.5 opacity-30 hover:opacity-80 transition-opacity" style={{ color: T.red }} />
+                                        }
+                                    </button>
                                 </div>
                             </div>
                         )
@@ -160,7 +225,7 @@ export default function CallHistory() {
 
             <p className="text-[11px] text-center mt-4" style={{ color: T.muted }}>{filtered.length} calls shown</p>
 
-            {/* Transcript panel */}
+            {/* Transcript side panel */}
             {selected && (
                 <div className="fixed inset-0 z-50 flex justify-end">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelected(null)} />
@@ -173,14 +238,14 @@ export default function CallHistory() {
                                     {format(parseISO(selected.created_at), "MMM d, yyyy · HH:mm")}
                                 </div>
                             </div>
-                            <button onClick={() => setSelected(null)} className="text-[T.muted] hover:opacity-70">
+                            <button onClick={() => setSelected(null)} className="hover:opacity-70">
                                 <X className="w-4 h-4" style={{ color: T.muted }} />
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto px-6 py-6">
                             <div className="grid grid-cols-2 gap-3 mb-6">
                                 {[
-                                    ["Phone", mask(selected.customer_phone)],
+                                    ["Caller", extractCallerName(selected)],
                                     ["Duration", fmtDur(selected.duration_seconds)],
                                     ["Language", selected.language_detected ?? "—"],
                                     ["Source", selected.call_source],

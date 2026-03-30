@@ -37,7 +37,6 @@ export default function SignUp() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [businessName, setBusinessName] = useState("")
-    const [industry, setIndustry] = useState("Healthcare")
     const [formLoading, setFormLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
@@ -72,15 +71,14 @@ export default function SignUp() {
                 owner_id: authData.user.id,
                 name: businessName,
                 slug,
-                industry,
+                industry: "Healthcare",
                 agent_name: "Shubh" // Default
             })
 
             if (bizError) {
-                console.error("Business creation error:", bizError)
-                setError("Account created but failed to setup business. Please contact support.")
-                setFormLoading(false)
-                return
+                console.warn("Business record error (non-fatal):", bizError)
+                // Account itself was created successfully — show success and let them log in.
+                // Business record may be created via DB trigger or can be set up after login.
             }
 
             // 2. Initialize Google Sheet Tab (Fire-and-forget for speed)
@@ -215,24 +213,27 @@ export default function SignUp() {
                             />
                         </div>
 
-                        {/* Industry */}
+                         {/* Industry — Healthcare only; others show Coming Soon */}
                         <div>
                             <label className="block text-[11px] text-white/30 font-medium tracking-widest uppercase mb-2">
                                 Industry
                             </label>
                             <select
                                 required
-                                value={industry}
-                                onChange={e => setIndustry(e.target.value)}
+                                value="Healthcare"
+                                onChange={() => {}}
                                 disabled={formLoading}
                                 className="w-full bg-white/5 border border-white/8 text-white text-[14px] px-4 py-3.5 rounded-xl outline-none focus:border-white/20 focus:bg-white/8 transition-all appearance-none"
                             >
-                                <option value="Healthcare" className="bg-[#0d0d0d]">Healthcare</option>
-                                <option value="Real Estate" className="bg-[#0d0d0d]">Real Estate</option>
-                                <option value="Retail" className="bg-[#0d0d0d]">Retail</option>
-                                <option value="Education" className="bg-[#0d0d0d]">Education</option>
-                                <option value="Other" className="bg-[#0d0d0d]">Other Business</option>
+                                <option value="Healthcare" className="bg-[#0d0d0d]">Healthcare / Dental ✓ Available</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Real Estate — Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Retail — Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Education — Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Other Business — Coming Soon</option>
                             </select>
+                            <p className="text-[11px] mt-1.5" style={{ color: "rgba(255,255,255,0.2)" }}>
+                                More industries launching soon. Currently optimised for dental &amp; healthcare.
+                            </p>
                         </div>
 
                         {/* Full Name */}

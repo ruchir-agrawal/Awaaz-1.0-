@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
-import { LayoutDashboard, PhoneCall, Calendar, Settings, BarChart3, LogOut, Menu, X } from "lucide-react"
+import { LayoutDashboard, PhoneCall, Calendar, Settings, BarChart3, LogOut, Menu, X, TableProperties } from "lucide-react"
 import { useState } from "react"
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { cn } from "@/lib/utils"
@@ -35,6 +35,7 @@ const nav = [
     { label: "Dashboard", to: "/owner", icon: LayoutDashboard },
     { label: "Call History", to: "/owner/calls", icon: PhoneCall },
     { label: "Appointments", to: "/owner/appointments", icon: Calendar },
+    { label: "Sheet Records", to: "/owner/sheet-records", icon: TableProperties },
     { label: "Analytics", to: "/owner/analytics", icon: BarChart3 },
     { label: "Settings", to: "/owner/settings", icon: Settings },
 ]

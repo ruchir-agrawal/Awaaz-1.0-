@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react"
 import { useVoiceAgent } from "@/hooks/useVoiceAgent"
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { useState } from "react"
-import { Mic, Square, Trash2, Activity, AlertCircle, MessageSquare, BrainCircuit, Sparkles } from "lucide-react"
+import { Mic, Trash2, Activity, AlertCircle, MessageSquare, BrainCircuit, Sparkles } from "lucide-react"
 
 const D = "'Syne', sans-serif"
 const I = "'Inter', sans-serif"
@@ -136,7 +136,7 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`
                         Agent Playground
                     </h1>
                     <p className="text-[14px] mt-1" style={{ color: T.muted }}>
-                        Live test of {agentName} — powered by Sarvam AI + Llama.
+                        Live test of {agentName} — powered by Sarvam AI + Llama 3.3.
                     </p>
                 </div>
 

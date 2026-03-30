@@ -32,6 +32,7 @@ import Appointments from "./pages/Appointments"
 import Analytics from "./pages/Analytics"
 import Playground from "./pages/Playground"
 import Settings from "./pages/Settings"
+import SheetRecords from "./pages/SheetRecords"
 
 import { AdminLayout } from "./components/layout/AdminLayout"
 import AdminDashboard from "./pages/admin/Dashboard"
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="calls" element={<CallHistory />} />
         <Route path="appointments" element={<Appointments />} />
+        <Route path="sheet-records" element={<SheetRecords />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
       </Route>

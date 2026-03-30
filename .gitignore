@@ -15,6 +15,7 @@ dist-ssr
 # Server files (excluded from repo)
 call.js
 server.js
+.telephony-audio/
 
 # Editor directories and files
 .vscode/*

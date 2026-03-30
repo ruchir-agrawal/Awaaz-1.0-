@@ -34,24 +34,30 @@ function doGet(e) {
 
     const lastRow = sheet.getLastRow();
     if (lastRow <= 1) {
-      // Only headers, no data
       return ContentService.createTextOutput(JSON.stringify({ status: 'ok', appointments: [] }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Read all data rows (skip header row 1)
-    const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues(); // Cols A-F only (no transcript/recording)
-
+    // Read all 10 columns (A-J) — matches the updated logCallData layout
+    const data = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+    
     const appointments = data.map(function (row) {
       return {
-        callTime: row[0] ? row[0].toString() : '',
-        patientName: row[1] ? row[1].toString() : '',
-        mobile: row[2] ? row[2].toString().replace(/^'/, '') : '', // strip leading apostrophe
-        reason: row[3] ? row[3].toString() : '',
-        status: row[4] ? row[4].toString() : '',
-        patientId: row[5] ? row[5].toString() : ''
+        callTime:            row[0] ? row[0].toString() : '',   // A
+        patientName:         row[1] ? row[1].toString() : '',   // B
+        mobile:              row[2] ? row[2].toString().replace(/^'/, '') : '', // C (strip leading apostrophe)
+        newOrReturning:      row[3] ? row[3].toString() : '',   // D
+        reason:              row[4] ? row[4].toString() : '',   // E
+        appointmentDatetime: row[5] ? row[5].toString() : '',   // F
+        status:              row[6] ? row[6].toString() : '',   // G
+        sessionUid:          row[7] ? row[7].toString() : '',   // H
+        transcript:          row[8] ? row[8].toString() : '',   // I
+        recordingLink:       row[9] ? row[9].toString() : '',   // J
       };
-    }).filter(function (a) { return a.patientName && a.patientName !== 'Unknown'; }); // Only valid entries
+    }).filter(function (a) {
+      // Only return rows that have at least a name or a valid status
+      return (a.patientName && a.patientName !== 'Not Captured') || a.status;
+    });
 
     return ContentService.createTextOutput(JSON.stringify({ status: 'ok', appointments: appointments }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -76,9 +82,25 @@ function doPost(e) {
       return initOwnerSheet(ss, businessName);
     }
 
-    // Support all Sharmaji Prompt Actions + Legacy LOG_CALL
-    const loggingTypes = ['book_appointment', 'log_call_data', 'LOG_CALL', 'check_calendar_availability', 'transfer_call'];
-    if (loggingTypes.indexOf(type) !== -1) {
+    // check_calendar_availability and transfer_call are UI-ONLY actions.
+    // They do NOT write rows to the sheet. Return a simple success.
+    if (type === 'check_calendar_availability') {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        status: 'ok', 
+        message: 'Calendar check acknowledged. Respond with available slots verbally.'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (type === 'transfer_call') {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        status: 'ok', 
+        message: 'Transfer acknowledged.'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Only these actions write a row to the sheet
+    const sheetWriteTypes = ['book_appointment', 'log_call_data', 'LOG_CALL'];
+    if (sheetWriteTypes.indexOf(type) !== -1) {
       return logCallData(ss, businessName, data, transcript, audioBase64);
     }
 
