@@ -30,7 +30,7 @@ interface VoiceAgentMetrics {
 const SENTENCE_BOUNDARY = /([.!?।]+\s*)/;
 
 // Strip ALL [[...]] patterns before TTS — prevents AI from speaking action tags aloud
-const TAG_STRIP_REGEX = /\[\[.*?\]\]/g;
+const TAG_STRIP_REGEX = /\[\[.*?\]\]/gs;
 
 function splitIntoSentences(text: string): { sentences: string[]; remainder: string } {
     const parts = text.split(SENTENCE_BOUNDARY);
@@ -483,10 +483,10 @@ export function useVoiceAgent({
             // IMPORTANT: check_calendar_availability and transfer_call do NOT write rows.
             // Only log_call_data and book_appointment should persist to the sheet.
             let cleanResponse = fullResponse;
-            cleanResponse = cleanResponse.replace(/\[\[.*?\]\]/g, "").trim();
+            cleanResponse = cleanResponse.replace(/\[\[.*?\]\]/gs, "").trim();
 
             if (!disableSideEffects) {
-                const actionRegex = /\[\[ACTION:\s*(\w+)\s*\|(.*?)\]\]/g;
+                const actionRegex = /\[\[ACTION:\s*(\w+)\s*\|(.*?)\]\]/gs;
                 let match;
 
                 while ((match = actionRegex.exec(fullResponse)) !== null) {

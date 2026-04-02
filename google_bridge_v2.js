@@ -55,8 +55,8 @@ function doGet(e) {
         recordingLink:       row[9] ? row[9].toString() : '',   // J
       };
     }).filter(function (a) {
-      // Only return rows that have at least a name or a valid status
-      return (a.patientName && a.patientName !== 'Not Captured') || a.status;
+      // Return all rows that have a timestamp (Column A)
+      return a.callTime && a.callTime.trim() !== '';
     });
 
     return ContentService.createTextOutput(JSON.stringify({ status: 'ok', appointments: appointments }))

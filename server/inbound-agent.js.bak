@@ -52,10 +52,9 @@ const supabase = supabaseUrl && supabaseServerKey
     ? createClient(supabaseUrl, supabaseServerKey, { auth: { persistSession: false } })
     : null;
 
-const ACTION_REGEX = /\[\[ACTION:\s*(\w+)\s*\|(.*?)\]\]/gis;
-const TAG_REGEX = /\[\[.*?\]\]/gis;
+const ACTION_REGEX = /\[\[ACTION:\s*(\w+)\s*\|(.*?)\]\]/g;
+const TAG_REGEX = /\[\[.*?\]\]/g;
 const MAX_HISTORY_MESSAGES = 8;
-const WEEKDAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 await fs.mkdir(audioDir, { recursive: true });
 
@@ -87,30 +86,6 @@ app.post("/voice/incoming", optionalTwilioValidation, async (req, res) => {
         }
 
         const session = await getOrCreateSession({ callSid, customerPhone, inboundNumber, business });
-        
-        // --- NEW: LOG TO SUPABASE ---
-        if (supabase) {
-            const { data: callData, error: callError } = await supabase
-                .from('calls')
-                .insert({
-                    business_id: business.id,
-                    customer_phone: customerPhone,
-                    call_source: 'phone',
-                    outcome: 'in-progress',
-                    created_at: new Date().toISOString()
-                })
-                .select('id')
-                .single();
-
-            if (!callError && callData) {
-                session.callId = callData.id;
-                console.log(`[LOG] Call record created in Supabase: ${callData.id}`);
-            } else {
-                console.warn("[LOG] Failed to create call record in Supabase:", callError?.message);
-            }
-        }
-        // ----------------------------
-
         const greeting = `Namaste, you have reached ${business.name}. I am ${business.agent_name || "Awaaz"}. How may I help you today?`;
         const audioUrl = await synthesizeSpeech(greeting, session.callSid, "welcome");
 
@@ -127,7 +102,6 @@ app.post("/voice/incoming", optionalTwilioValidation, async (req, res) => {
 });
 
 app.post("/voice/turn", optionalTwilioValidation, async (req, res) => {
-    const turnStart = performance.now();
     const callSid = req.body.CallSid;
     const session = sessions.get(callSid);
     const twiml = new VoiceResponse();
@@ -175,27 +149,18 @@ app.post("/voice/turn", optionalTwilioValidation, async (req, res) => {
         session.turns += 1;
         session.transcript.push(`CUSTOMER: ${speechText}`);
         session.messages.push({ role: "user", content: speechText });
-        await syncSupabaseCall(session, {
-            transcript: buildTranscript(session),
-            customer_phone: session.captured.phone_number || session.customerPhone || null,
-        });
 
-        const llmStart = performance.now();
         const aiResponse = await generateAssistantReply(session);
-        const llmEnd = performance.now();
-        console.log(`[LATENCY] LLM Turnaround: ${(llmEnd - llmStart).toFixed(2)}ms`);
-
         const actions = extractActions(aiResponse);
-        let cleanResponse = getSpokenResponse(aiResponse);
+        const cleanResponse = stripTags(aiResponse).trim() || "I am here. Please continue.";
+
+        session.messages.push({ role: "assistant", content: cleanResponse });
+        session.transcript.push(`AGENT: ${cleanResponse}`);
 
         let shouldClose = false;
 
         for (const action of actions) {
             mergeCapturedData(session, action.type, action.params);
-
-            if (action.type === "check_calendar_availability") {
-                cleanResponse = await buildCalendarAvailabilityResponse(session, cleanResponse);
-            }
 
             if (action.type === "log_call_data" || action.type === "LOG_CALL") {
                 await ensureCallLogged(session, "Assistant requested explicit logging");
@@ -211,18 +176,7 @@ app.post("/voice/turn", optionalTwilioValidation, async (req, res) => {
             shouldClose = isClosingResponse(cleanResponse, actions);
         }
 
-        session.messages.push({ role: "assistant", content: cleanResponse });
-        session.transcript.push(`AGENT: ${cleanResponse}`);
-        await syncSupabaseCall(session, {
-            transcript: buildTranscript(session),
-            customer_phone: session.captured.phone_number || session.customerPhone || null,
-        });
-
-        const ttsStart = performance.now();
         const responseAudioUrl = await synthesizeSpeech(cleanResponse, session.callSid, `turn-${session.turns}`);
-        const ttsEnd = performance.now();
-        console.log(`[LATENCY] TTS Turnaround: ${(ttsEnd - ttsStart).toFixed(2)}ms`);
-        console.log(`[LATENCY] Total Turnaround (Server): ${(ttsEnd - turnStart).toFixed(2)}ms`);
 
         if (shouldClose && session.transferRequested) {
             await ensureCallLogged(session, "Transfer path");
@@ -369,8 +323,6 @@ async function getOrCreateSession({ callSid, customerPhone, inboundNumber, busin
         turns: 0,
         transferRequested: false,
         transferReason: "",
-        callId: null,
-        startTime: Date.now(),
     };
 
     sessions.set(callSid, session);
@@ -405,25 +357,18 @@ async function buildSystemPrompt({ business, customerPhone, sessionUid }) {
 
     const appointmentContext = await fetchAppointmentsForPrompt(business.name);
 
-    // Build the action-format instructions.
-    // CRITICAL: We do NOT show raw [[ACTION:...]] examples in the prompt.
-    // The user's system_prompt already describes the functions (check_calendar_availability,
-    // book_appointment, log_call_data, transfer_call). We only need to tell the LLM
-    // the exact OUTPUT FORMAT to use, and that it must NEVER be spoken aloud.
-    const actionInstructions = [
-        "=== SILENT ACTION RULES ===",
-        "You may optionally append one or more machine-only action tags after your spoken reply.",
-        "The spoken reply must come first. Action tags must come after it, on a new line.",
-        "Never mention tag names, field names, key:value pairs, or bracket syntax to the caller.",
-        "Allowed action names are check_calendar_availability, book_appointment, log_call_data, transfer_call.",
-        `When logging a call, always include session_uid: ${sessionUid}.`,
-        "If you output an action tag, keep the spoken reply natural and separate from the tag.",
-        "=== END SILENT ACTION RULES ===",
-    ].join("\n");
-
     return [
         prompt,
-        actionInstructions,
+        "[TECHNICAL INSTRUCTIONS]",
+        "Use these exact actions when appropriate.",
+        `[[ACTION: check_calendar_availability | reason: <reason>]]`,
+        `[[ACTION: book_appointment | patient_name: <name> | phone_number: <phone> | appointment_datetime: <datetime> | service_reason: <service> | new_or_returning: <status>]]`,
+        `[[ACTION: log_call_data | session_uid: ${sessionUid} | patient_name: <name> | phone_number: <phone> | new_or_returning: <status> | service_reason: <reason> | appointment_datetime: <datetime>]]`,
+        `[[ACTION: transfer_call | reason: <reason>]]`,
+        "Latency rule: keep every spoken reply short, ideally under 25 words and one question at a time.",
+        "Always gather the caller name, phone number, reason, and preferred slot before confirming a booking.",
+        "If the caller sounds uncertain, repeat the appointment date and time clearly before closing.",
+        "Never say the action tags aloud.",
         appointmentContext,
     ].filter(Boolean).join("\n\n");
 }
@@ -445,37 +390,15 @@ async function fetchAppointmentsForPrompt(businessName) {
         }
 
         const lines = json.appointments
-            .slice(-15) // Get last 15 for better context
+            .slice(-12)
             .map((appointment) =>
-                `- ${appointment.callTime}: ${appointment.patientName} (${appointment.mobile}) — ${appointment.reason} — Status: ${appointment.status}`
+                `- ${appointment.callTime}: ${appointment.patientName} (${appointment.mobile}) - ${appointment.reason} - Status: ${appointment.status}`
             )
             .join("\n");
 
-        return `[EXISTING APPOINTMENTS - DO NOT DOUBLE BOOK THESE SLOTS]\nBefore confirming any new booking, check this list. If the requested time slot already has a confirmed appointment, say that slot is unavailable and suggest another one.\n\n${lines}`;
+        return `[EXISTING APPOINTMENTS - DO NOT DOUBLE BOOK THESE SLOTS]\n${lines}`;
     } catch {
         return "";
-    }
-}
-
-async function fetchBridgeAppointments(businessName) {
-    if (!googleBridgeUrl || !businessName) {
-        return [];
-    }
-
-    try {
-        const response = await fetch(`${googleBridgeUrl}?businessName=${encodeURIComponent(businessName)}`);
-        if (!response.ok) {
-            return [];
-        }
-
-        const json = await response.json();
-        if (json.status !== "ok" || !Array.isArray(json.appointments)) {
-            return [];
-        }
-
-        return json.appointments;
-    } catch {
-        return [];
     }
 }
 
@@ -538,7 +461,7 @@ async function callGemini(history, systemPrompt) {
                     })),
                 generationConfig: {
                     temperature: 0.55,
-                    maxOutputTokens: 300,
+                    maxOutputTokens: 140,
                 },
             }),
         }
@@ -568,7 +491,7 @@ async function callGroq(history) {
             model: "llama-3.3-70b-versatile",
             messages: history,
             temperature: 0.45,
-            max_tokens: 300,
+            max_tokens: 140,
         }),
     });
 
@@ -605,137 +528,7 @@ function extractActions(text) {
 }
 
 function stripTags(text) {
-    let cleaned = text.replace(TAG_REGEX, "");
-    cleaned = cleaned.replace(/\[\[ACTION:[\s\S]*$/i, "");
-    cleaned = cleaned.replace(/\[[^\]]*\]/g, "");
-    cleaned = cleaned.replace(/\bACTION\s*:.*$/gim, "");
-    cleaned = cleaned.replace(/\[\[|\]\]/g, "");
-    cleaned = cleaned.replace(/\|\s*\w+:\s*[^|\n]*/g, "");
-    cleaned = cleaned.replace(/<\w+>/g, "");
-    cleaned = cleaned.replace(/\b(?:check_calendar_availability|book_appointment|log_call_data|transfer_call|session_uid|patient_name|phone_number|appointment_datetime|service_reason|new_or_returning)\b.*$/gim, "");
-    // Clean up whitespace
-    cleaned = cleaned.replace(/\s{2,}/g, " ").trim();
-    return cleaned || "I am here. Please continue.";
-}
-
-function getSpokenResponse(rawText) {
-    const actionMarkerIndex = rawText.search(/\[\[ACTION:|\bACTION\s*:/i);
-    const spokenCandidate = actionMarkerIndex >= 0 ? rawText.slice(0, actionMarkerIndex) : rawText;
-    return stripTags(spokenCandidate);
-}
-
-function buildTranscript(session) {
-    return session.transcript.join("\n\n");
-}
-
-async function buildCalendarAvailabilityResponse(session, existingResponse) {
-    const bridgeRows = await fetchBridgeAppointments(session.business.name);
-    const requestedAnchor = inferRequestedDateTime(session);
-    const availableSlots = computeAvailableSlots(session.business, bridgeRows, requestedAnchor).slice(0, 3);
-
-    if (availableSlots.length === 0) {
-        return "I’m sorry, I do not see any open slots right now. I can suggest another day or arrange a callback."
-    }
-
-    return `I have ${availableSlots.map(formatSlotForSpeech).join(", ")} available. Which one works best for you?`
-}
-
-function inferRequestedDateTime(session) {
-    const lastUserMessage = [...session.messages].reverse().find((message) => message.role === "user")?.content?.toLowerCase() || "";
-    const anchor = new Date();
-    anchor.setSeconds(0, 0);
-
-    if (lastUserMessage.includes("tomorrow")) {
-        anchor.setDate(anchor.getDate() + 1);
-        return anchor;
-    }
-
-    const weekdayIndex = WEEKDAY_NAMES.findIndex((day) => lastUserMessage.includes(day));
-    if (weekdayIndex >= 0) {
-        const candidate = new Date(anchor);
-        const offset = (weekdayIndex - candidate.getDay() + 7) % 7 || 7;
-        candidate.setDate(candidate.getDate() + offset);
-        return candidate;
-    }
-
-    return anchor;
-}
-
-function computeAvailableSlots(business, bridgeRows, anchorDate) {
-    const startHour = parseHourValue(business.hours_opening, 9);
-    const endHour = parseHourValue(business.hours_closing, 19);
-    const workingDays = (business.working_days || []).map((day) => day.toLowerCase());
-    const occupiedKeys = new Set(
-        bridgeRows
-            .filter((row) => (row.status || "").toLowerCase().includes("confirm"))
-            .map((row) => normalizeAppointmentKey(row.appointmentDatetime))
-            .filter(Boolean)
-    );
-
-    const slots = [];
-    for (let dayOffset = 0; dayOffset < 7 && slots.length < 6; dayOffset += 1) {
-        const candidateDay = new Date(anchorDate);
-        candidateDay.setDate(anchorDate.getDate() + dayOffset);
-        const weekday = WEEKDAY_NAMES[candidateDay.getDay()];
-        if (workingDays.length > 0 && !workingDays.includes(weekday)) {
-            continue;
-        }
-
-        for (let hour = Math.max(startHour, 10); hour < endHour && slots.length < 6; hour += 1) {
-            const slot = new Date(candidateDay);
-            slot.setHours(hour, 0, 0, 0);
-            if (slot <= new Date(Date.now() + 30 * 60 * 1000)) {
-                continue;
-            }
-
-            const slotKey = normalizeAppointmentKey(formatSlotForSpeech(slot));
-            if (!occupiedKeys.has(slotKey)) {
-                slots.push(slot);
-            }
-        }
-    }
-
-    return slots;
-}
-
-function parseHourValue(value, fallback) {
-    if (!value) return fallback;
-    const raw = String(value);
-    const match = raw.match(/^(\d{1,2})/);
-    return match ? Number(match[1]) : fallback;
-}
-
-function normalizeAppointmentKey(value) {
-    return (value || "").toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function formatSlotForSpeech(slot) {
-    return slot.toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        weekday: "long",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-    }).replace(",", " at");
-}
-
-async function syncSupabaseCall(session, updates = {}) {
-    if (!supabase || !session.callId) {
-        return;
-    }
-
-    try {
-        const { error } = await supabase
-            .from("calls")
-            .update(updates)
-            .eq("id", session.callId);
-
-        if (error) {
-            console.warn(`[LOG] Incremental Supabase sync failed for ${session.callId}: ${error.message}`);
-        }
-    } catch (error) {
-        console.warn(`[LOG] Incremental Supabase sync exception for ${session.callId}: ${error.message}`);
-    }
+    return text.replace(TAG_REGEX, "").replace(/\s{2,}/g, " ").trim();
 }
 
 function mergeCapturedData(session, actionType, params) {
@@ -765,65 +558,35 @@ function mergeCapturedData(session, actionType, params) {
 }
 
 async function ensureCallLogged(session, reason) {
-    if (session.hasLogged) {
+    if (session.hasLogged || !googleBridgeUrl) {
         return;
     }
 
-    const transcript = buildTranscript(session);
+    const transcript = session.transcript.join("\n\n");
     if (!transcript.trim()) {
         return;
     }
 
-    const durationSeconds = Math.round((Date.now() - session.startTime) / 1000);
-    const finalOutcome = session.transferRequested ? "transferred" : 
-                        (session.captured.appointment_datetime ? "booked" : "completed");
-
-    // 1. Log to Supabase (if callId exists)
-    let bridgeRecordingUrl = null;
-    await syncSupabaseCall(session, {
+    const payload = {
+        type: "log_call_data",
+        businessName: session.business.name,
+        data: {
+            ...session.captured,
+            phone_number: session.captured.phone_number || session.customerPhone || null,
+            service_reason: session.captured.service_reason || reason,
+        },
         transcript,
-        duration_seconds: durationSeconds,
-        outcome: finalOutcome,
-        ended_at: new Date().toISOString(),
-        customer_phone: session.captured.phone_number || session.customerPhone || null,
-        language_detected: twilioLanguage,
+    };
+
+    const response = await fetch(googleBridgeUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
     });
 
-    // 2. Log to Google Sheet via Bridge
-    if (googleBridgeUrl) {
-        const payload = {
-            type: "log_call_data",
-            businessName: session.business.name,
-            data: {
-                ...session.captured,
-                phone_number: session.captured.phone_number || session.customerPhone || null,
-                service_reason: session.captured.service_reason || reason,
-            },
-            transcript,
-        };
-
-        try {
-            const response = await fetch(googleBridgeUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                console.warn(`[LOG] Google bridge log failed: ${response.status} ${errText}`);
-            } else {
-                const bridgeJson = await response.json().catch(() => null);
-                bridgeRecordingUrl = bridgeJson?.recordingUrl || null;
-                console.log("[LOG] Google bridge log successful.");
-            }
-        } catch (e) {
-            console.error("[LOG] Google bridge fetch exception:", e);
-        }
-    }
-
-    if (bridgeRecordingUrl) {
-        await syncSupabaseCall(session, { recording_url: bridgeRecordingUrl });
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Google bridge log failed: ${response.status} ${errText}`);
     }
 
     session.hasLogged = true;
@@ -902,7 +665,7 @@ async function synthesizeSpeech(text, callSid, stepLabel) {
             speaker: preferredSarvamSpeaker,
             pace: 1.03,
             speech_sample_rate: 8000,
-            enable_preprocessing: false, // Disabled for performance (Save ~1.0s)
+            enable_preprocessing: true,
             model: "bulbul:v3",
         }),
     });

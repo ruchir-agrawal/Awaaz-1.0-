@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { useBusinessData } from "@/hooks/useBusinessData"
+import { supabase } from "@/lib/supabase"
 import { RefreshCw, ExternalLink, ChevronDown, ChevronUp, Clock } from "lucide-react"
 
 const D = "'Syne', sans-serif"
@@ -35,7 +36,46 @@ interface SheetRow {
     recordingLink: string
 }
 
-const AUTO_REFRESH_INTERVAL = 30_000 // 30 seconds
+interface BridgeAppointmentRow {
+    callTime?: string
+    patientName?: string
+    mobile?: string
+    newOrReturning?: string
+    reason?: string
+    appointmentDatetime?: string
+    status?: string
+    sessionUid?: string
+    transcript?: string
+    recordingLink?: string
+}
+
+interface BridgeResponse {
+    status: string
+    message?: string
+    appointments?: BridgeAppointmentRow[]
+}
+
+interface CallRecordFallback {
+    created_at: string
+    customer_phone: string | null
+    outcome: string
+    transcript: string | null
+    recording_url: string | null
+}
+
+const AUTO_REFRESH_INTERVAL = 10_000
+
+function extractPatientNameFromTranscript(transcript: string | null) {
+    if (!transcript) return ""
+    const match = transcript.match(/(?:my name is|i am|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i)
+    return match?.[1] ?? ""
+}
+
+function extractReasonFromTranscript(transcript: string | null) {
+    if (!transcript) return "—"
+    const match = transcript.match(/(?:for|about|regarding)\s+([^.!\n]+)/i)
+    return match?.[1]?.trim() ?? "—"
+}
 
 function StatusBadge({ status }: { status: string }) {
     const s = status?.toLowerCase() ?? ""
@@ -142,6 +182,34 @@ export default function SheetRecords() {
 
     const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
 
+    const loadFallbackRowsFromCalls = useCallback(async () => {
+        if (!business?.id) return []
+
+        const { data, error } = await supabase
+            .from("calls")
+            .select("created_at, customer_phone, outcome, transcript, recording_url")
+            .eq("business_id", business.id)
+            .order("created_at", { ascending: false })
+            .limit(50)
+
+        if (error || !data) {
+            return []
+        }
+
+        return (data as CallRecordFallback[]).map((call, index) => ({
+            callTime: call.created_at ? new Date(call.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
+            patientName: extractPatientNameFromTranscript(call.transcript) || "Unknown",
+            mobile: call.customer_phone ?? "",
+            newOrReturning: "",
+            serviceReason: extractReasonFromTranscript(call.transcript),
+            appointmentDatetime: "",
+            status: call.outcome ?? "",
+            sessionUid: `fallback-${index}-${call.created_at}`,
+            transcript: call.transcript ?? "",
+            recordingLink: call.recording_url ?? "",
+        }))
+    }, [business?.id])
+
     const fetchData = useCallback(async (silent = false) => {
         if (!business?.name || !bridgeUrl) {
             setLoading(false)
@@ -155,36 +223,36 @@ export default function SheetRecords() {
         try {
             const res = await fetch(`${bridgeUrl}?businessName=${encodeURIComponent(business.name)}`)
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
-            const json = await res.json()
+            const json = await res.json() as BridgeResponse
 
             if (json.status !== "ok") throw new Error(json.message || "Unknown error from bridge")
 
-            // Map raw appointment objects from GET endpoint to full row shape
-            // The GET endpoint currently only returns the first 6 cols (A-F).
-            // We map what we have and leave the rest as empty strings.
-            const mapped: SheetRow[] = (json.appointments ?? []).map((a: any) => ({
+            const mapped: SheetRow[] = (json.appointments ?? []).map((a) => ({
                 callTime: a.callTime ?? "",
                 patientName: a.patientName ?? "",
                 mobile: a.mobile ?? "",
-                newOrReturning: a.newOrReturning ?? a.patientId ?? "",
+                newOrReturning: a.newOrReturning ?? "",
                 serviceReason: a.reason ?? "",
                 appointmentDatetime: a.appointmentDatetime ?? "",
                 status: a.status ?? "",
-                sessionUid: a.sessionUid ?? a.patientId ?? "",
+                sessionUid: a.sessionUid ?? "",
                 transcript: a.transcript ?? "",
                 recordingLink: a.recordingLink ?? "",
             }))
-            // Newest first
-            setRows(mapped.reverse())
+            const finalRows = mapped.length > 0 ? mapped.reverse() : await loadFallbackRowsFromCalls()
+            setRows(finalRows)
             setLastRefreshed(new Date())
-        } catch (e: any) {
-            setError(e.message || "Failed to fetch sheet data.")
+        } catch (e) {
+            const message = e instanceof Error ? e.message : "Failed to fetch sheet data."
+            const fallbackRows = await loadFallbackRowsFromCalls()
+            setRows(fallbackRows)
+            setError(fallbackRows.length > 0 ? null : message)
         } finally {
             setLoading(false)
             setRefreshing(false)
             setCountdown(AUTO_REFRESH_INTERVAL / 1000)
         }
-    }, [business?.name, bridgeUrl])
+    }, [business?.name, bridgeUrl, loadFallbackRowsFromCalls])
 
     // Initial load
     useEffect(() => { fetchData() }, [fetchData])
@@ -194,6 +262,21 @@ export default function SheetRecords() {
         const interval = setInterval(() => fetchData(true), AUTO_REFRESH_INTERVAL)
         return () => clearInterval(interval)
     }, [fetchData])
+
+    useEffect(() => {
+        if (!business?.id) return
+
+        const channel = supabase
+            .channel(`sheet-sync-${business.id}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'calls', filter: `business_id=eq.${business.id}` }, () => {
+                fetchData(true)
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [business?.id, fetchData])
 
     // Countdown ticker
     useEffect(() => {
