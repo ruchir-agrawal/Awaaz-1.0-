@@ -41,6 +41,7 @@ id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 owner_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
 name TEXT NOT NULL,
 slug TEXT UNIQUE NOT NULL, -- used for /call/:slug route
+cal_user_id TEXT UNIQUE,
 industry TEXT NOT NULL DEFAULT 'general',
 phone TEXT,
 address TEXT,

@@ -7,6 +7,14 @@ import dotenv from "dotenv";
 import twilio from "twilio";
 import { createClient } from "@supabase/supabase-js";
 import {
+    buildCalAuthorizationUrl,
+    checkGoogleCalendarConnection,
+    exchangeAuthorizationCode,
+    fetchCalProfile,
+    fetchGoogleCalendarConnectUrl,
+    isCalOAuthConfigured,
+} from "./cal-oauth-service.js";
+import {
     createCalendarBooking,
     getCalendarProviderLabel,
     getCalendarSlots,
@@ -53,6 +61,8 @@ const transferFallbackNumber = process.env.TWILIO_TRANSFER_NUMBER || "";
 const preferredSarvamSpeaker = process.env.SARVAM_SPEAKER || "shubh";
 const inboundNumberMap = parseJson(process.env.TWILIO_NUMBER_TO_BUSINESS_MAP || "{}");
 const sessions = new Map();
+const calendarOAuthStates = new Map();
+const calendarConnectSessions = new Map();
 
 const supabase = supabaseUrl && supabaseServerKey
     ? createClient(supabaseUrl, supabaseServerKey, { auth: { persistSession: false } })
@@ -75,8 +85,146 @@ app.get("/health", (_req, res) => {
         usingServiceRole: Boolean(supabaseServiceRoleKey),
         googleBridgeConfigured: Boolean(googleBridgeUrl),
         calendarProvider: getCalendarProviderLabel(),
+        calOAuthConfigured: isCalOAuthConfigured(),
         sarvamConfigured: Boolean(sarvamApiKey),
     });
+});
+
+app.post("/calendar/connect", async (req, res) => {
+    try {
+        if (!supabase) {
+            return res.status(500).send("Supabase server access is not configured.");
+        }
+
+        if (!isCalOAuthConfigured()) {
+            return res.status(500).send("Cal.com OAuth is not configured.");
+        }
+
+        const accessToken = req.body.access_token || req.header("authorization")?.replace(/^Bearer\s+/i, "");
+        const returnTo = sanitizeReturnTo(req.body.return_to);
+        if (!accessToken) {
+            return res.status(401).send("Missing Supabase access token.");
+        }
+
+        const authUser = await getAuthenticatedUser(accessToken);
+        if (!authUser) {
+            return res.status(401).send("Invalid Supabase session.");
+        }
+
+        const business = await fetchBusinessByOwnerId(authUser.id);
+        if (!business) {
+            return res.status(404).send("No business record found for this owner.");
+        }
+
+        const state = crypto.randomUUID();
+        calendarOAuthStates.set(state, {
+            ownerId: authUser.id,
+            businessId: business.id,
+            returnTo,
+            createdAt: Date.now(),
+        });
+
+        cleanupExpiredCalendarStates();
+        res.redirect(buildCalAuthorizationUrl({
+            redirectUri: absoluteUrl("/calendar/oauth/callback"),
+            state,
+        }));
+    } catch (error) {
+        console.error("Calendar connect bootstrap failed:", error);
+        res.status(500).send("Unable to start the calendar connection flow.");
+    }
+});
+
+app.get("/calendar/oauth/callback", async (req, res) => {
+    const code = req.query.code;
+    const state = req.query.state;
+    const errorParam = req.query.error;
+
+    if (errorParam) {
+        const returnTo = state && calendarOAuthStates.get(state)?.returnTo;
+        if (state) {
+            calendarOAuthStates.delete(state);
+        }
+        return redirectWithStatus(res, returnTo, "oauth_denied");
+    }
+
+    if (!code || !state || !calendarOAuthStates.has(state)) {
+        return res.status(400).send("Invalid or expired calendar OAuth state.");
+    }
+
+    const pendingState = calendarOAuthStates.get(state);
+    calendarOAuthStates.delete(state);
+
+    try {
+        const tokenSet = await exchangeAuthorizationCode({
+            code: String(code),
+            redirectUri: absoluteUrl("/calendar/oauth/callback"),
+        });
+        const accessToken = tokenSet?.access_token;
+        if (!accessToken) {
+            throw new Error("Missing Cal.com access token.");
+        }
+
+        const profile = await fetchCalProfile(accessToken);
+        const calUserId = profile?.id;
+        if (!calUserId) {
+            throw new Error("Missing Cal.com user id.");
+        }
+
+        const linkId = crypto.randomUUID();
+        calendarConnectSessions.set(linkId, {
+            accessToken,
+            calUserId: String(calUserId),
+            ownerId: pendingState.ownerId,
+            businessId: pendingState.businessId,
+            returnTo: pendingState.returnTo,
+            createdAt: Date.now(),
+        });
+
+        cleanupExpiredCalendarStates();
+        const connectUrl = await fetchGoogleCalendarConnectUrl(
+            accessToken,
+            absoluteUrl(`/calendar/oauth/finalize?link=${encodeURIComponent(linkId)}`)
+        );
+
+        res.redirect(connectUrl);
+    } catch (error) {
+        console.error("Calendar OAuth callback failed:", error);
+        redirectWithStatus(res, pendingState.returnTo, "oauth_failed");
+    }
+});
+
+app.get("/calendar/oauth/finalize", async (req, res) => {
+    const linkId = String(req.query.link || "");
+    const pendingLink = calendarConnectSessions.get(linkId);
+
+    if (!linkId || !pendingLink) {
+        return res.status(400).send("Invalid or expired calendar connection session.");
+    }
+
+    calendarConnectSessions.delete(linkId);
+
+    try {
+        const isConnected = await checkGoogleCalendarConnection(pendingLink.accessToken);
+        if (!isConnected) {
+            return redirectWithStatus(res, pendingLink.returnTo, "connect_incomplete");
+        }
+
+        const { error } = await supabase
+            .from("businesses")
+            .update({ cal_user_id: pendingLink.calUserId })
+            .eq("id", pendingLink.businessId)
+            .eq("owner_id", pendingLink.ownerId);
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        redirectWithStatus(res, pendingLink.returnTo, "connected");
+    } catch (error) {
+        console.error("Calendar finalize failed:", error);
+        redirectWithStatus(res, pendingLink.returnTo, "connect_failed");
+    }
 });
 
 app.post("/voice/incoming", optionalTwilioValidation, async (req, res) => {
@@ -292,6 +440,72 @@ function parseJson(raw) {
         return JSON.parse(raw);
     } catch {
         return {};
+    }
+}
+
+async function getAuthenticatedUser(accessToken) {
+    const { data, error } = await supabase.auth.getUser(accessToken);
+    if (error) {
+        console.warn(`Supabase auth verification failed: ${error.message}`);
+        return null;
+    }
+
+    return data?.user || null;
+}
+
+async function fetchBusinessByOwnerId(ownerId) {
+    const { data, error } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("owner_id", ownerId)
+        .single();
+
+    if (error) {
+        if (error.code === "PGRST116") {
+            return null;
+        }
+        throw new Error(`Business lookup failed: ${error.message}`);
+    }
+
+    return data;
+}
+
+function sanitizeReturnTo(returnTo) {
+    if (!returnTo) {
+        return `${appBaseUrl || "http://localhost:5173"}/owner/settings`;
+    }
+
+    try {
+        const parsed = new URL(returnTo);
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+            throw new Error("Unsupported protocol");
+        }
+        return parsed.toString();
+    } catch {
+        return `${appBaseUrl || "http://localhost:5173"}/owner/settings`;
+    }
+}
+
+function redirectWithStatus(res, returnTo, status) {
+    const target = new URL(sanitizeReturnTo(returnTo));
+    target.searchParams.set("calendar", status);
+    res.redirect(target.toString());
+}
+
+function cleanupExpiredCalendarStates() {
+    const expiryMs = 15 * 60 * 1000;
+    const cutoff = Date.now() - expiryMs;
+
+    for (const [state, value] of calendarOAuthStates.entries()) {
+        if (value.createdAt < cutoff) {
+            calendarOAuthStates.delete(state);
+        }
+    }
+
+    for (const [linkId, value] of calendarConnectSessions.entries()) {
+        if (value.createdAt < cutoff) {
+            calendarConnectSessions.delete(linkId);
+        }
     }
 }
 

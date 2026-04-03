@@ -1,17 +1,21 @@
-const CAL_API_BASE_URL = (process.env.CAL_COM_API_BASE_URL || "https://api.cal.com").replace(/\/$/, "");
-const CAL_API_VERSION = process.env.CAL_COM_API_VERSION || "2024-08-13";
-const CAL_API_KEY = process.env.CAL_COM_API_KEY || "";
-const DEFAULT_TIME_ZONE = process.env.CAL_COM_TIMEZONE || "Asia/Kolkata";
-const DEFAULT_EVENT_TYPE_ID = process.env.CAL_COM_EVENT_TYPE_ID || "";
-const DEFAULT_EVENT_TYPE_SLUG = process.env.CAL_COM_EVENT_TYPE_SLUG || "";
-const DEFAULT_USERNAME = process.env.CAL_COM_USERNAME || "";
-const DEFAULT_ORGANIZATION_SLUG = process.env.CAL_COM_ORGANIZATION_SLUG || "";
-const DEFAULT_EVENT_LENGTH_MINUTES = Number(process.env.CAL_COM_EVENT_LENGTH_MINUTES || 30);
-const EVENT_TYPE_ID_MAP = parseJson(process.env.CAL_COM_EVENT_TYPE_ID_MAP || "{}");
-const EVENT_TYPE_SLUG_MAP = parseJson(process.env.CAL_COM_EVENT_TYPE_SLUG_MAP || "{}");
-const USERNAME_MAP = parseJson(process.env.CAL_COM_USERNAME_MAP || "{}");
-const ORGANIZATION_SLUG_MAP = parseJson(process.env.CAL_COM_ORGANIZATION_SLUG_MAP || "{}");
-const TIME_ZONE_MAP = parseJson(process.env.CAL_COM_TIMEZONE_MAP || "{}");
+function getCalendarEnv() {
+    return {
+        apiBaseUrl: (process.env.CAL_COM_API_BASE_URL || "https://api.cal.com").replace(/\/$/, ""),
+        apiVersion: process.env.CAL_COM_API_VERSION || "2024-08-13",
+        apiKey: process.env.CAL_COM_API_KEY || "",
+        defaultTimeZone: process.env.CAL_COM_TIMEZONE || "Asia/Kolkata",
+        defaultEventTypeId: process.env.CAL_COM_EVENT_TYPE_ID || "",
+        defaultEventTypeSlug: process.env.CAL_COM_EVENT_TYPE_SLUG || "",
+        defaultUsername: process.env.CAL_COM_USERNAME || "",
+        defaultOrganizationSlug: process.env.CAL_COM_ORGANIZATION_SLUG || "",
+        defaultEventLengthMinutes: Number(process.env.CAL_COM_EVENT_LENGTH_MINUTES || 30),
+        eventTypeIdMap: parseJson(process.env.CAL_COM_EVENT_TYPE_ID_MAP || "{}"),
+        eventTypeSlugMap: parseJson(process.env.CAL_COM_EVENT_TYPE_SLUG_MAP || "{}"),
+        usernameMap: parseJson(process.env.CAL_COM_USERNAME_MAP || "{}"),
+        organizationSlugMap: parseJson(process.env.CAL_COM_ORGANIZATION_SLUG_MAP || "{}"),
+        timeZoneMap: parseJson(process.env.CAL_COM_TIMEZONE_MAP || "{}"),
+    };
+}
 
 function parseJson(raw) {
     try {
@@ -35,12 +39,13 @@ function pickMappedValue(map, business) {
 }
 
 function resolveBusinessConfig(business) {
-    const eventTypeIdRaw = pickMappedValue(EVENT_TYPE_ID_MAP, business) || DEFAULT_EVENT_TYPE_ID;
+    const env = getCalendarEnv();
+    const eventTypeIdRaw = pickMappedValue(env.eventTypeIdMap, business) || env.defaultEventTypeId;
     const eventTypeId = eventTypeIdRaw ? Number(eventTypeIdRaw) : null;
-    const eventTypeSlug = pickMappedValue(EVENT_TYPE_SLUG_MAP, business) || DEFAULT_EVENT_TYPE_SLUG || "";
-    const username = pickMappedValue(USERNAME_MAP, business) || DEFAULT_USERNAME || "";
-    const organizationSlug = pickMappedValue(ORGANIZATION_SLUG_MAP, business) || DEFAULT_ORGANIZATION_SLUG || "";
-    const timeZone = pickMappedValue(TIME_ZONE_MAP, business) || DEFAULT_TIME_ZONE;
+    const eventTypeSlug = pickMappedValue(env.eventTypeSlugMap, business) || env.defaultEventTypeSlug || "";
+    const username = pickMappedValue(env.usernameMap, business) || env.defaultUsername || "";
+    const organizationSlug = pickMappedValue(env.organizationSlugMap, business) || env.defaultOrganizationSlug || "";
+    const timeZone = pickMappedValue(env.timeZoneMap, business) || env.defaultTimeZone;
 
     return {
         eventTypeId: Number.isFinite(eventTypeId) ? eventTypeId : null,
@@ -48,13 +53,14 @@ function resolveBusinessConfig(business) {
         username,
         organizationSlug,
         timeZone,
-        lengthInMinutes: DEFAULT_EVENT_LENGTH_MINUTES,
+        lengthInMinutes: env.defaultEventLengthMinutes,
     };
 }
 
 function hasResolvableConfig(config) {
+    const env = getCalendarEnv();
     return Boolean(
-        CAL_API_KEY
+        env.apiKey
         && (
             config.eventTypeId
             || (config.eventTypeSlug && config.username)
@@ -63,8 +69,9 @@ function hasResolvableConfig(config) {
 }
 
 function buildSlotsUrl(config, startTime, endTime) {
-    const url = new URL(`${CAL_API_BASE_URL}/v1/slots`);
-    url.searchParams.set("apiKey", CAL_API_KEY);
+    const env = getCalendarEnv();
+    const url = new URL(`${env.apiBaseUrl}/v1/slots`);
+    url.searchParams.set("apiKey", env.apiKey);
     url.searchParams.set("startTime", startTime.toISOString());
     url.searchParams.set("endTime", endTime.toISOString());
     url.searchParams.set("timeZone", config.timeZone);
@@ -163,12 +170,13 @@ export async function createCalendarBooking({
         }
     }
 
-    const response = await fetch(`${CAL_API_BASE_URL}/v2/bookings`, {
+    const env = getCalendarEnv();
+    const response = await fetch(`${env.apiBaseUrl}/v2/bookings`, {
         method: "POST",
         headers: {
-            Authorization: `Bearer ${CAL_API_KEY}`,
+            Authorization: `Bearer ${env.apiKey}`,
             "Content-Type": "application/json",
-            "cal-api-version": CAL_API_VERSION,
+            "cal-api-version": env.apiVersion,
         },
         body: JSON.stringify(body),
     });
@@ -183,5 +191,5 @@ export async function createCalendarBooking({
 }
 
 export function getCalendarProviderLabel() {
-    return CAL_API_KEY ? "cal.com" : "sheet-fallback";
+    return getCalendarEnv().apiKey ? "cal.com" : "sheet-fallback";
 }

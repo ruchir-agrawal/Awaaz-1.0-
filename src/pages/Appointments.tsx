@@ -1,9 +1,9 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { useAppointmentsData } from "@/hooks/useAppointmentsData"
 import type { Appointment } from "@/types/database"
-import { format, parseISO, addDays, getDaysInMonth, startOfMonth, startOfWeek, isSameDay } from "date-fns"
-import { LayoutList, CalendarDays, ChevronDown } from "lucide-react"
+import { format, parseISO, addDays, addMonths, subMonths, startOfMonth, startOfWeek, isSameDay, isSameMonth, isToday } from "date-fns"
+import { LayoutList, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, PhoneCall, Clock3 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -14,6 +14,7 @@ const T = {
     text: "#e8e4dd", muted: "rgba(232,228,221,0.38)", ghost: "rgba(232,228,221,0.1)",
     border: "rgba(232,228,221,0.07)", borderStrong: "rgba(232,228,221,0.12)",
     gold: "#c8a034", goldBg: "rgba(200,160,52,0.07)", surface: "#0d0d0d",
+    blue: "#4a7fa5", blueBg: "rgba(74,127,165,0.1)",
 }
 
 const STATUS: Record<Appointment["status"], { label: string; color: string; bg: string }> = {
@@ -24,11 +25,23 @@ const STATUS: Record<Appointment["status"], { label: string; color: string; bg: 
     "no-show": { label: "No Show", color: "rgba(232,228,221,0.3)", bg: "rgba(232,228,221,0.05)" },
 }
 
+const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+function getAppointmentSource(appointment: Appointment) {
+    if (appointment.call_id) {
+        return { label: "Phone call", color: T.gold, bg: T.goldBg, icon: PhoneCall }
+    }
+
+    return { label: "Manual", color: T.blue, bg: T.blueBg, icon: Clock3 }
+}
+
 export default function Appointments() {
     const { business } = useBusinessData()
     const { appointments, todayCount, upcomingCount, loading } = useAppointmentsData(business?.id)
     const [view, setView] = useState<"list" | "calendar">("list")
     const [filter, setFilter] = useState("all")
+    const [monthCursor, setMonthCursor] = useState(new Date())
+    const [selectedDate, setSelectedDate] = useState(new Date())
 
     const now = new Date()
     const weekStart = startOfWeek(now)
@@ -38,6 +51,16 @@ export default function Appointments() {
     }).length
 
     const filtered = appointments.filter(a => filter === "all" || a.status === filter)
+
+    const calendarDays = useMemo(() => {
+        const monthStart = startOfMonth(monthCursor)
+        const firstVisible = startOfWeek(monthStart)
+        return Array.from({ length: 42 }, (_, i) => addDays(firstVisible, i))
+    }, [monthCursor])
+
+    const selectedDayAppointments = useMemo(() => {
+        return filtered.filter(appointment => isSameDay(parseISO(appointment.appointment_date), selectedDate))
+    }, [filtered, selectedDate])
 
     const update = async (id: string, status: string) => {
         const { error } = await supabase.from("appointments").update({ status }).eq("id", id)
@@ -50,15 +73,28 @@ export default function Appointments() {
         </div>
     )
 
-    const CalendarView = () => {
-        const start = startOfMonth(now)
-        const blanks = start.getDay()
-        const days = Array.from({ length: getDaysInMonth(now) }, (_, i) => addDays(start, i))
-        const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-        return (
+    const CalendarView = () => (
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_380px] gap-6">
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
                 <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
-                    <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(now, "MMMM yyyy")}</div>
+                    <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(monthCursor, "MMMM yyyy")}</div>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                            style={{ border: `1px solid ${T.border}`, color: T.muted }}>
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => { setMonthCursor(new Date()); setSelectedDate(new Date()) }}
+                            className="px-3 py-2 rounded-lg text-[12px] transition-all"
+                            style={{ border: `1px solid ${T.border}`, color: T.muted }}>
+                            Today
+                        </button>
+                        <button type="button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                            style={{ border: `1px solid ${T.border}`, color: T.muted }}>
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
                 <div className="grid grid-cols-7 border-b" style={{ borderColor: T.border }}>
                     {DAYS.map(d => (
@@ -67,33 +103,82 @@ export default function Appointments() {
                     ))}
                 </div>
                 <div className="grid grid-cols-7">
-                    {Array.from({ length: blanks }).map((_, i) => (
-                        <div key={`b${i}`} className="min-h-[56px] border-r border-b" style={{ borderColor: T.border }} />
-                    ))}
-                    {days.map(day => {
-                        const apts = appointments.filter(a => isSameDay(parseISO(a.appointment_date), day) && a.status === "confirmed")
-                        const isToday = isSameDay(day, now)
+                    {calendarDays.map(day => {
+                        const dayAppointments = filtered.filter(a => isSameDay(parseISO(a.appointment_date), day))
+                        const inCurrentMonth = isSameMonth(day, monthCursor)
+                        const dayIsToday = isToday(day)
+                        const isSelected = isSameDay(day, selectedDate)
                         return (
-                            <div key={day.toISOString()} className="min-h-[56px] p-1.5 border-r border-b last:border-r-0"
-                                style={{ borderColor: T.border, background: isToday ? "rgba(200,160,52,0.04)" : undefined }}>
-                                <span className={cn("text-[12px] font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1",
-                                    isToday ? "bg-[#c8a034] text-black" : "")}
-                                    style={{ color: isToday ? undefined : T.muted }}>
+                            <button key={day.toISOString()} type="button" onClick={() => setSelectedDate(day)}
+                                className="min-h-[110px] p-2 border-r border-b last:border-r-0 text-left transition-all"
+                                style={{
+                                    borderColor: T.border,
+                                    background: isSelected ? "rgba(200,160,52,0.08)" : dayIsToday ? "rgba(232,228,221,0.02)" : undefined,
+                                    opacity: inCurrentMonth ? 1 : 0.42,
+                                }}>
+                                <span className={cn("text-[12px] font-medium w-7 h-7 flex items-center justify-center rounded-full mb-2")}
+                                    style={{ background: isSelected || dayIsToday ? T.gold : "transparent", color: isSelected || dayIsToday ? "#000" : T.muted }}>
                                     {format(day, "d")}
                                 </span>
-                                {apts.map(a => (
-                                    <div key={a.id} className="text-[10px] px-1.5 py-0.5 rounded truncate mb-0.5"
-                                        style={{ background: "rgba(200,160,52,0.12)", color: T.gold }}>
-                                        {a.customer_name}
+                                <div className="space-y-1">
+                                    {dayAppointments.slice(0, 2).map(a => (
+                                        <div key={a.id} className="text-[10px] px-2 py-1 rounded truncate"
+                                            style={{ background: a.call_id ? T.goldBg : T.blueBg, color: a.call_id ? T.gold : T.blue }}>
+                                            {a.appointment_time.slice(0, 5)} {a.customer_name}
+                                        </div>
+                                    ))}
+                                    {dayAppointments.length > 2 ? <div className="text-[10px]" style={{ color: T.muted }}>+{dayAppointments.length - 2} more</div> : null}
+                                    {dayAppointments.length === 0 ? <div className="text-[10px]" style={{ color: "rgba(232,228,221,0.18)" }}>No bookings</div> : null}
+                                </div>
+                            </button>
+                        )
+                    })}
+                </div>
+            </div>
+            <div className="rounded-xl border overflow-hidden h-fit" style={{ borderColor: T.border, background: T.surface }}>
+                <div className="px-5 py-4 border-b" style={{ borderColor: T.border }}>
+                    <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(selectedDate, "EEEE, MMMM d")}</div>
+                    <div className="text-[12px] mt-1" style={{ color: T.muted }}>
+                        {selectedDayAppointments.length} appointment{selectedDayAppointments.length === 1 ? "" : "s"}
+                    </div>
+                </div>
+                <div className="p-4 space-y-3">
+                    {selectedDayAppointments.length === 0 ? (
+                        <div className="rounded-xl border px-4 py-8 text-center" style={{ borderColor: T.border, color: T.muted }}>
+                            No appointments on this day.
+                        </div>
+                    ) : selectedDayAppointments.map(appointment => {
+                        const status = STATUS[appointment.status]
+                        const source = getAppointmentSource(appointment)
+                        const SourceIcon = source.icon
+                        return (
+                            <div key={appointment.id} className="rounded-xl border px-4 py-4" style={{ borderColor: T.border }}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-[14px] font-medium" style={{ color: T.text }}>{appointment.customer_name}</div>
+                                        <div className="text-[12px] mt-1" style={{ color: T.muted }}>{appointment.customer_phone}</div>
                                     </div>
-                                ))}
+                                    <span className="text-[11px] font-medium px-2 py-1 rounded-md" style={{ color: status.color, background: status.bg }}>
+                                        {status.label}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                                    <span className="text-[11px] px-2 py-1 rounded-md" style={{ color: T.text, background: "rgba(232,228,221,0.06)" }}>
+                                        {appointment.appointment_time.slice(0, 5)}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md" style={{ color: source.color, background: source.bg }}>
+                                        <SourceIcon className="w-3 h-3" />
+                                        {source.label}
+                                    </span>
+                                </div>
+                                {appointment.reason ? <div className="mt-3 text-[12px]" style={{ color: T.muted }}>Reason: {appointment.reason}</div> : null}
                             </div>
                         )
                     })}
                 </div>
             </div>
-        )
-    }
+        </div>
+    )
 
     return (
         <div style={{ fontFamily: I }}>
@@ -153,8 +238,8 @@ export default function Appointments() {
             {view === "calendar" ? <CalendarView /> : (
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
                     <div className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
-                        style={{ gridTemplateColumns: "1fr 80px 60px 110px 140px", background: T.surface, borderColor: T.border, color: T.muted }}>
-                        <span>Customer</span><span>Date</span><span>Time</span><span>Status</span><span>Update</span>
+                        style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: T.surface, borderColor: T.border, color: T.muted }}>
+                        <span>Customer</span><span>Date</span><span>Time</span><span>Source</span><span>Status</span><span>Update</span>
                     </div>
                     {filtered.length === 0 ? (
                         <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
@@ -162,19 +247,29 @@ export default function Appointments() {
                         </div>
                     ) : filtered.map((apt, idx) => {
                         const ss = STATUS[apt.status]
+                        const source = getAppointmentSource(apt)
+                        const SourceIcon = source.icon
                         return (
                             <div key={apt.id}
                                 className="grid px-5 py-4 border-b"
-                                style={{ gridTemplateColumns: "1fr 80px 60px 110px 140px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                                style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
                                 <div>
                                     <div className="text-[14px] font-medium" style={{ color: T.text }}>{apt.customer_name}</div>
                                     <div className="text-[12px]" style={{ color: T.muted }}>{apt.customer_phone}</div>
+                                    {apt.reason ? <div className="text-[11px] mt-1" style={{ color: "rgba(232,228,221,0.28)" }}>{apt.reason}</div> : null}
                                 </div>
                                 <div className="text-[13px] self-center" style={{ color: T.muted }}>
                                     {format(parseISO(apt.appointment_date), "MMM d")}
                                 </div>
                                 <div className="text-[13px] font-mono self-center" style={{ color: T.muted }}>
                                     {apt.appointment_time.slice(0, 5)}
+                                </div>
+                                <div className="self-center">
+                                    <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md"
+                                        style={{ color: source.color, background: source.bg }}>
+                                        <SourceIcon className="w-3 h-3" />
+                                        {source.label}
+                                    </span>
                                 </div>
                                 <div className="self-center">
                                     <span className="text-[11px] font-medium px-2 py-1 rounded-md"
