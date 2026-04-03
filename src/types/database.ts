@@ -15,6 +15,7 @@ export interface Business {
   owner_id: string
   name: string
   slug: string
+  cal_user_id: string | null
   industry: string
   phone: string | null
   address: string | null

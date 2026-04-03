@@ -18,6 +18,10 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
+      '/calendar': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
       '/xai-api': {
         target: 'https://api.x.ai',
         changeOrigin: true,

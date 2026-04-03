@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { supabase } from "@/lib/supabase"
-import { Save, Loader2, Building2, Bell } from "lucide-react"
+import { Save, Loader2, Building2, Bell, CalendarDays, CircleCheckBig } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +15,7 @@ const T = {
 
 const tabs = [
     { id: "business", label: "Business", icon: Building2 },
+    { id: "calendar", label: "Calendar", icon: CalendarDays },
     { id: "notifications", label: "Notifications", icon: Bell },
 ]
 
@@ -33,18 +34,15 @@ export default function Settings() {
     const [tab, setTab] = useState("business")
     const [saving, setSaving] = useState(false)
     const [form, setForm] = useState({
-        name: "", industry: "", city: "", phone: "", address: "",
+        name: "", slug: "", industry: "", city: "", phone: "", address: "",
         notif_whatsapp: false, notif_reminder: false, notif_phone: "",
     })
 
     useEffect(() => {
         if (business) setForm(f => ({
-            ...f,
-            name: business.name || "",
-            industry: business.industry || "",
-            city: business.city || "",
-            phone: business.phone || "",
-            address: business.address || "",
+            ...f, name: business.name || "", slug: business.slug || "",
+            industry: business.industry || "", city: business.city || "",
+            phone: business.phone || "", address: business.address || "",
         }))
     }, [business])
 
@@ -55,7 +53,7 @@ export default function Settings() {
         if (!business) return
         setSaving(true)
         const payload = tab === "business"
-            ? { name: form.name, industry: form.industry, city: form.city, phone: form.phone, address: form.address }
+            ? { name: form.name, slug: form.slug, industry: form.industry, city: form.city, phone: form.phone, address: form.address }
             : {}
         const { error } = await supabase.from("businesses").update(payload).eq("id", business.id)
         setSaving(false)
@@ -77,6 +75,7 @@ export default function Settings() {
                 </h1>
             </div>
 
+            {/* Tabs */}
             <div className="flex gap-0 border-b mb-8" style={{ borderColor: T.border }}>
                 {tabs.map(t => (
                     <button key={t.id} onClick={() => setTab(t.id)}
@@ -91,12 +90,14 @@ export default function Settings() {
             <form onSubmit={save}>
                 {tab === "business" && (
                     <div className="space-y-6 max-w-xl">
-                        <div className="rounded-xl border px-4 py-4 text-[13px] leading-relaxed" style={{ background: T.surface, borderColor: T.border, color: T.muted }}>
-                            Your public voice link is set by the admin team, so you only need to enter the business details required for setup.
-                        </div>
                         <Field label="Business name">
                             <input value={form.name} onChange={e => up("name", e.target.value)}
                                 placeholder="Your business name" className={inputCls}
+                                style={{ borderColor: T.border, color: T.text }} />
+                        </Field>
+                        <Field label="URL slug" hint="Used in your public voice link. Letters, numbers, hyphens only.">
+                            <input value={form.slug} onChange={e => up("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-"))}
+                                placeholder="my-clinic" className={inputCls}
                                 style={{ borderColor: T.border, color: T.text }} />
                         </Field>
                         <div className="grid grid-cols-2 gap-4">
@@ -155,7 +156,46 @@ export default function Settings() {
                     </div>
                 )}
 
-                {tab !== "notifications" && (
+                {tab === "calendar" && (
+                    <div className="max-w-xl">
+                        <div className="rounded-2xl border p-6 space-y-5" style={{ background: T.surface, borderColor: T.border }}>
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-[0.18em] mb-2" style={{ color: T.muted }}>Cal.com</p>
+                                    <h2 className="text-[1.4rem]" style={{ fontFamily: D, color: T.text }}>
+                                        Shared calendar
+                                    </h2>
+                                    <p className="text-[13px] mt-2 leading-relaxed" style={{ color: T.muted }}>
+                                        Awaaz is currently using one shared Cal.com admin account for scheduling. Every appointment is booked into the central calendar configured on the server.
+                                    </p>
+                                </div>
+                                <div
+                                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px]"
+                                    style={{
+                                        color: T.gold,
+                                        background: T.goldBg,
+                                        border: "1px solid rgba(200,160,52,0.18)"
+                                    }}
+                                >
+                                    <CircleCheckBig className="w-3.5 h-3.5" />
+                                    Connected
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border px-4 py-4 text-[13px] leading-relaxed" style={{ borderColor: T.border, color: T.muted }}>
+                                This temporary setup uses the admin Cal.com API key and a single shared event type. Business owners do not need to connect their own Google accounts yet.
+                            </div>
+
+
+                            <div className="text-[12px] space-y-1.5" style={{ color: T.muted }}>
+                                <p>Flow: Awaaz sign-up → Connect Calendar → Cal.com OAuth → Google account connect → save `cal_user_id`.</p>
+                                <p>Set `CAL_COM_OAUTH_CLIENT_ID` and `CAL_COM_OAUTH_CLIENT_SECRET` on the server before using this in production.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {tab !== "notifications" && tab !== "calendar" && (
                     <button type="submit" disabled={saving}
                         className="mt-8 flex items-center gap-2 px-6 py-3 rounded-lg text-[14px] font-semibold transition-all disabled:opacity-50 hover:opacity-90"
                         style={{ background: T.goldBg, color: T.gold, border: "1px solid rgba(200,160,52,0.2)", fontFamily: I }}>
