@@ -10,6 +10,7 @@ This setup gives you a low-cost inbound AI receptionist for appointment booking.
 - Gemini handles the LLM step first because it is the cheapest dev option.
 - Sarvam generates the Indian-accent voice that the caller hears.
 - Google Apps Script logs the booking or inquiry into your sheet.
+- Cal.com can optionally act as the real scheduling layer for availability and booking creation.
 
 This is not full-duplex real-time audio. It is turn-based voice AI. For development, that is the best tradeoff between cost, quality, and build speed.
 
@@ -40,6 +41,15 @@ GEMINI_API_KEY=your-gemini-key
 GROQ_API_KEY=your-groq-key
 
 GOOGLE_BRIDGE_URL=https://script.google.com/macros/s/your-script-id/exec
+
+CAL_COM_API_KEY=cal_live_xxxxx
+CAL_COM_EVENT_TYPE_ID=123456
+# Optional per-business overrides:
+# CAL_COM_EVENT_TYPE_ID_MAP={"+14788125680":123456}
+# CAL_COM_EVENT_TYPE_SLUG_MAP={"your-business-slug":"consultation"}
+# CAL_COM_USERNAME_MAP={"your-business-slug":"clinic-owner"}
+# CAL_COM_ORGANIZATION_SLUG_MAP={"your-business-slug":"your-org"}
+# CAL_COM_TIMEZONE=Asia/Kolkata
 
 TWILIO_AUTH_TOKEN=your-twilio-auth-token
 TWILIO_TRANSFER_NUMBER=+91XXXXXXXXXX
@@ -92,12 +102,14 @@ Buy or use the trial number, then set:
 4. Gemini generates the next response.
 5. Sarvam turns that reply into Indian-accent audio.
 6. The agent repeats until it books the appointment or ends the inquiry.
-7. The conversation is logged to your Google Sheet through the existing bridge.
+7. Confirmed bookings are written into your `appointments` table.
+8. If Cal.com is configured, availability and booking creation use Cal.com.
+9. The conversation is still logged to your Google Sheet through the existing bridge.
 
 ## Current limitations
 
 - Sessions are stored in memory, which is fine for dev and small tests.
-- The booking write goes through the Google bridge, not a direct calendar API.
+- If Cal.com is not configured, scheduling falls back to sheet-derived availability.
 - Business lookup depends on `phone` matching or `TWILIO_NUMBER_TO_BUSINESS_MAP`.
 - Transfer is single-number only right now.
 
@@ -115,6 +127,5 @@ Upgrade only after the flow works:
 
 - Move from ngrok to a deployed server.
 - Add a dedicated `telephony_number` column in Supabase.
-- Add direct appointment writes into the `appointments` table.
+- Add Cal.com webhooks so cancellations and reschedules sync back automatically.
 - Replace in-memory sessions with Redis or Supabase.
-- Add true calendar availability checks.

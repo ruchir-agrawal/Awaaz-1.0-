@@ -6,6 +6,12 @@ import express from "express";
 import dotenv from "dotenv";
 import twilio from "twilio";
 import { createClient } from "@supabase/supabase-js";
+import {
+    createCalendarBooking,
+    getCalendarProviderLabel,
+    getCalendarSlots,
+    isCalendarConfiguredForBusiness,
+} from "./calendar-service.js";
 
 dotenv.config();
 dotenv.config({ path: ".env.local", override: true });
@@ -68,6 +74,7 @@ app.get("/health", (_req, res) => {
         supabaseConfigured: Boolean(supabase),
         usingServiceRole: Boolean(supabaseServiceRoleKey),
         googleBridgeConfigured: Boolean(googleBridgeUrl),
+        calendarProvider: getCalendarProviderLabel(),
         sarvamConfigured: Boolean(sarvamApiKey),
     });
 });
@@ -194,7 +201,11 @@ app.post("/voice/turn", optionalTwilioValidation, async (req, res) => {
             mergeCapturedData(session, action.type, action.params);
 
             if (action.type === "check_calendar_availability") {
-                cleanResponse = await buildCalendarAvailabilityResponse(session, cleanResponse);
+                cleanResponse = await buildCalendarAvailabilityResponseEnhanced(session, cleanResponse);
+            }
+
+            if (action.type === "book_appointment") {
+                await handleBookedAppointment(session);
             }
 
             if (action.type === "log_call_data" || action.type === "LOG_CALL") {
@@ -370,6 +381,8 @@ async function getOrCreateSession({ callSid, customerPhone, inboundNumber, busin
         transferRequested: false,
         transferReason: "",
         callId: null,
+        appointmentId: null,
+        calendarBookingUid: null,
         startTime: Date.now(),
     };
 
@@ -403,7 +416,7 @@ async function buildSystemPrompt({ business, customerPhone, sessionUid }) {
         .replace(/{{current_time_IST}}/g, nowIst)
         .replace(/{{user_number}}/g, customerPhone || "Unknown");
 
-    const appointmentContext = await fetchAppointmentsForPrompt(business.name);
+    const appointmentContext = await fetchAppointmentsForPromptEnhanced(business);
 
     // Build the action-format instructions.
     // CRITICAL: We do NOT show raw [[ACTION:...]] examples in the prompt.
@@ -417,6 +430,7 @@ async function buildSystemPrompt({ business, customerPhone, sessionUid }) {
         "Never mention tag names, field names, key:value pairs, or bracket syntax to the caller.",
         "Allowed action names are check_calendar_availability, book_appointment, log_call_data, transfer_call.",
         `When logging a call, always include session_uid: ${sessionUid}.`,
+        "Whenever you emit book_appointment, set appointment_datetime in exact YYYY-MM-DD HH:mm format using India time.",
         "If you output an action tag, keep the spoken reply natural and separate from the tag.",
         "=== END SILENT ACTION RULES ===",
     ].join("\n");
@@ -827,6 +841,212 @@ async function ensureCallLogged(session, reason) {
     }
 
     session.hasLogged = true;
+}
+
+async function buildCalendarAvailabilityResponseEnhanced(session, existingResponse) {
+    const requestedAnchor = inferRequestedDateTime(session);
+    let availableSlots = [];
+
+    if (isCalendarConfiguredForBusiness(session.business)) {
+        try {
+            availableSlots = await getCalendarSlots({
+                business: session.business,
+                anchorDate: requestedAnchor,
+                limit: 3,
+            });
+        } catch (error) {
+            console.warn(`[CALENDAR] Falling back to sheet-derived slots: ${error.message}`);
+        }
+    }
+
+    if (availableSlots.length === 0) {
+        return buildCalendarAvailabilityResponse(session, existingResponse);
+    }
+
+    return `I have ${availableSlots.map(formatSlotForSpeech).join(", ")} available. Which one works best for you?`;
+}
+
+function parseAppointmentDateTime(value) {
+    if (!value) {
+        return null;
+    }
+
+    const normalized = String(value).trim();
+    if (!normalized || normalized.toLowerCase() === "null") {
+        return null;
+    }
+
+    const isoMatch = normalized.match(/^(\d{4}-\d{2}-\d{2})[ t](\d{1,2}):(\d{2})(?:\s*([ap]m))?$/i);
+    if (isoMatch) {
+        let hour = Number(isoMatch[2]);
+        const minute = Number(isoMatch[3]);
+        const meridiem = (isoMatch[4] || "").toLowerCase();
+
+        if (meridiem === "pm" && hour < 12) hour += 12;
+        if (meridiem === "am" && hour === 12) hour = 0;
+
+        const parsed = new Date(`${isoMatch[1]}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+05:30`);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatIstDate(date) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(date);
+
+    const get = (type) => parts.find((part) => part.type === type)?.value || "";
+    return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function formatIstTime(date) {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).formatToParts(date);
+
+    const get = (type) => parts.find((part) => part.type === type)?.value || "";
+    return `${get("hour")}:${get("minute")}`;
+}
+
+function formatIstSpokenDate(date) {
+    return new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+    }).format(date);
+}
+
+async function syncSupabaseAppointment(session, bookingDate, bookingMeta = null) {
+    if (!supabase || !bookingDate || !session.business?.id) {
+        return null;
+    }
+
+    const payload = {
+        business_id: session.business.id,
+        call_id: session.callId || null,
+        customer_name: session.captured.patient_name || "Unknown caller",
+        customer_phone: session.captured.phone_number || session.customerPhone || "",
+        appointment_date: formatIstDate(bookingDate),
+        appointment_time: formatIstTime(bookingDate),
+        reason: session.captured.service_reason || null,
+        notes: bookingMeta?.uid
+            ? `Booked via ${getCalendarProviderLabel()} (${bookingMeta.uid})`
+            : "Booked by Awaaz voice agent",
+        status: "confirmed",
+        updated_at: new Date().toISOString(),
+    };
+
+    if (session.appointmentId) {
+        const { error } = await supabase
+            .from("appointments")
+            .update(payload)
+            .eq("id", session.appointmentId);
+
+        if (error) {
+            console.warn(`[APPOINTMENT] Failed to update appointment ${session.appointmentId}: ${error.message}`);
+        }
+
+        return session.appointmentId;
+    }
+
+    const { data, error } = await supabase
+        .from("appointments")
+        .insert(payload)
+        .select("id")
+        .single();
+
+    if (error) {
+        console.warn(`[APPOINTMENT] Failed to create appointment: ${error.message}`);
+        return null;
+    }
+
+    session.appointmentId = data?.id || null;
+    return session.appointmentId;
+}
+
+async function handleBookedAppointment(session) {
+    const bookingDate = parseAppointmentDateTime(session.captured.appointment_datetime);
+    if (!bookingDate) {
+        console.warn(`[APPOINTMENT] Could not parse appointment_datetime "${session.captured.appointment_datetime}"`);
+        return null;
+    }
+
+    if (session.calendarBookingUid) {
+        await syncSupabaseAppointment(session, bookingDate, { uid: session.calendarBookingUid });
+        session.captured.appointment_datetime = formatIstSpokenDate(bookingDate);
+        return { uid: session.calendarBookingUid };
+    }
+
+    let calendarBooking = null;
+    if (isCalendarConfiguredForBusiness(session.business)) {
+        try {
+            calendarBooking = await createCalendarBooking({
+                business: session.business,
+                patientName: session.captured.patient_name,
+                phoneNumber: session.captured.phone_number || session.customerPhone,
+                start: bookingDate,
+                notes: session.captured.service_reason || "",
+                metadata: {
+                    sessionUid: session.sessionUid,
+                    businessSlug: session.business.slug,
+                    callId: session.callId || "",
+                },
+            });
+        } catch (error) {
+            console.error(`[CALENDAR] Booking creation failed: ${error.message}`);
+        }
+    }
+
+    await syncSupabaseAppointment(session, bookingDate, calendarBooking);
+    session.calendarBookingUid = calendarBooking?.uid || session.calendarBookingUid || null;
+    session.captured.appointment_datetime = formatIstSpokenDate(bookingDate);
+    return calendarBooking;
+}
+
+async function fetchAppointmentsForPromptEnhanced(business) {
+    const lines = [];
+
+    if (supabase && business?.id) {
+        try {
+            const { data, error } = await supabase
+                .from("appointments")
+                .select("customer_name, customer_phone, appointment_date, appointment_time, reason, status")
+                .eq("business_id", business.id)
+                .in("status", ["confirmed", "pending"])
+                .order("appointment_date", { ascending: true })
+                .order("appointment_time", { ascending: true })
+                .limit(15);
+
+            if (!error && Array.isArray(data)) {
+                for (const appointment of data) {
+                    lines.push(
+                        `- ${appointment.appointment_date} ${appointment.appointment_time}: ${appointment.customer_name} (${appointment.customer_phone}) â€” ${appointment.reason || "General inquiry"} â€” Status: ${appointment.status}`
+                    );
+                }
+            }
+        } catch (error) {
+            console.warn(`[PROMPT] Supabase appointment context failed: ${error.message}`);
+        }
+    }
+
+    if (lines.length === 0) {
+        return fetchAppointmentsForPrompt(business?.name);
+    }
+
+    return `[EXISTING APPOINTMENTS - DO NOT DOUBLE BOOK THESE SLOTS]\nBefore confirming any new booking, check this list. If the requested time slot already has a confirmed appointment, say that slot is unavailable and suggest another one.\n\n${lines.join("\n")}`;
 }
 
 async function markSessionTransfer(session, reason) {

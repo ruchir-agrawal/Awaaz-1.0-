@@ -66,7 +66,7 @@ export default function PublicCall() {
             basePrompt += `\n\n[TECHNICAL INSTRUCTIONS]:
 To trigger the functions mentioned in your prompt, you MUST use this exact syntax:
 - For Availability: [[ACTION: check_calendar_availability | reason: <reason>]]
-- For Booking: [[ACTION: book_appointment | patient_name: <name> | phone_number: <phone> | appointment_datetime: <datetime> | service_reason: <service> | new_or_returning: <status>]]
+- For Booking: [[ACTION: book_appointment | patient_name: <name> | phone_number: <phone> | appointment_datetime: <YYYY-MM-DD HH:mm in IST> | service_reason: <service> | new_or_returning: <status>]]
 - For Logging (End of call): [[ACTION: log_call_data | session_uid: ${sessionUid} | patient_name: <name> | phone_number: <phone> | new_or_returning: <status> | service_reason: <reason> | appointment_datetime: <datetime>]]
 - For Transfer: [[ACTION: transfer_call | reason: <reason>]]
 
