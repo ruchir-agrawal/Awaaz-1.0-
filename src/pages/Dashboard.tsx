@@ -1,7 +1,8 @@
+import { Link } from "react-router-dom"
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { useCallsData } from "@/hooks/useCallsData"
 import { useAppointmentsData } from "@/hooks/useAppointmentsData"
-import { Copy, PhoneOutgoing, X } from "lucide-react"
+import { Copy, PhoneOutgoing, Settings2, ShieldCheck, FileText, X } from "lucide-react"
 import { toast } from "sonner"
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { format, subDays, parseISO } from "date-fns"
@@ -47,6 +48,9 @@ export default function Dashboard() {
     const rate = completed.length > 0 ? Math.round((successful.length / completed.length) * 100) : 0
     const revenue = todayCount * 500
     const publicUrl = `${window.location.origin}/call/${business.slug}`
+    const isBusinessNew = business.created_at === business.updated_at
+    const needsProfileSetup = [business.phone, business.address, business.city].some(value => !value?.trim())
+    const showOnboarding = isBusinessNew || needsProfileSetup
 
     const chartData = Array.from({ length: 14 }).map((_, i) => {
         const d = subDays(new Date(), 13 - i)
@@ -55,15 +59,34 @@ export default function Dashboard() {
     })
 
     const metrics = [
-        { label: "Calls today", value: callsToday.length, big: true },
-        { label: "Success rate", value: `${rate}%`, big: false },
-        { label: "Booked", value: todayCount, big: false },
-        { label: "Est. revenue", value: `₹${revenue.toLocaleString("en-IN")}`, big: false },
+        { label: "Calls today", value: callsToday.length },
+        { label: "Success rate", value: `${rate}%` },
+        { label: "Booked", value: todayCount },
+        { label: "Est. revenue", value: `â‚¹${revenue.toLocaleString("en-IN")}` },
+    ]
+
+    const onboardingSteps = [
+        {
+            icon: Settings2,
+            title: "Open Settings",
+            body: "Go to the settings page to start configuring your business profile.",
+        },
+        {
+            icon: FileText,
+            title: "Add Correct Details",
+            body: "Enter your business details carefully and click Save Settings when everything is accurate.",
+        },
+        {
+            icon: ShieldCheck,
+            title: business.is_active ? "Admin Approved" : "Await Admin Approval",
+            body: business.is_active
+                ? "Your account has been reviewed and approved by the admin team."
+                : "After you save your information, our admin team will review and authorize your account.",
+        },
     ]
 
     return (
         <div style={{ fontFamily: I }}>
-            {/* Page header */}
             <div className="mb-8 flex items-start justify-between gap-4">
                 <div>
                     <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Owner dashboard</p>
@@ -75,12 +98,45 @@ export default function Dashboard() {
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="text-[12px]" style={{ color: T.ok, fontFamily: I }}>
                         {business.is_active ? "Live" : "Offline"}
-                        {activeCalls.length > 0 && ` · ${activeCalls.length} active`}
+                        {activeCalls.length > 0 && ` Â· ${activeCalls.length} active`}
                     </span>
                 </div>
             </div>
 
-            {/* Metric strip — NO cards, just a row divided by lines */}
+            {showOnboarding && (
+                <div className="mb-8 rounded-xl border p-6" style={{ background: T.surface, borderColor: T.border }}>
+                    <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <p className="mb-2 text-[11px] uppercase tracking-[0.18em]" style={{ color: T.muted }}>Getting started</p>
+                            <h2 style={{ fontFamily: D, fontWeight: 700, fontSize: "1.35rem", color: T.text, letterSpacing: "-0.03em" }}>
+                                Set up your business in 3 quick steps
+                            </h2>
+                            <p className="mt-2 max-w-2xl text-[13px]" style={{ color: T.muted }}>
+                                Complete these details once so the admin team can review your business and activate your account.
+                            </p>
+                        </div>
+                        <Link
+                            to="/owner/settings"
+                            className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[12px] font-medium transition-all hover:opacity-85"
+                            style={{ background: T.goldBg, color: T.gold, border: "1px solid rgba(200,160,52,0.2)" }}
+                        >
+                            <Settings2 className="h-3.5 w-3.5" />
+                            Open settings
+                        </Link>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                        {onboardingSteps.map((step) => (
+                            <div key={step.title} className="rounded-xl border p-4" style={{ background: "#0a0a0a", borderColor: T.border }}>
+                                <step.icon className="mb-3 h-4 w-4" style={{ color: T.gold }} />
+                                <div className="mb-1 text-[14px] font-semibold" style={{ color: T.text }}>{step.title}</div>
+                                <p className="text-[12px] leading-relaxed" style={{ color: T.muted }}>{step.body}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="flex divide-x mb-10 overflow-hidden rounded-xl border"
                 style={{ borderColor: T.border, background: T.surface }}>
                 {metrics.map((m, i) => (
@@ -99,7 +155,6 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* Voice link */}
             <div className="flex items-center justify-between px-5 py-4 rounded-xl mb-8 border"
                 style={{ background: T.goldBg, borderColor: "rgba(200,160,52,0.15)" }}>
                 <div>
@@ -113,7 +168,6 @@ export default function Dashboard() {
                 </button>
             </div>
 
-            {/* Active calls */}
             {activeCalls.length > 0 && (
                 <div className="mb-8">
                     <p className="text-[11px] uppercase tracking-[0.15em] mb-3" style={{ color: T.muted }}>Active calls</p>
@@ -127,14 +181,13 @@ export default function Dashboard() {
                                         <div className="text-[14px] font-medium" style={{ color: T.text }}>
                                             {call.customer_phone?.replace(/(\d{4})$/, "XXXX") ?? "Unknown"}
                                         </div>
-                                        <div className="text-[11px] capitalize" style={{ color: T.gold }}>In progress…</div>
+                                        <div className="text-[11px] capitalize" style={{ color: T.gold }}>In progressâ€¦</div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <span className="text-[15px] font-mono tabular-nums" style={{ color: T.muted }}>
                                         {Math.floor((call.duration_seconds ?? 0) / 60)}:{((call.duration_seconds ?? 0) % 60).toString().padStart(2, "0")}
                                     </span>
-                                    {/* Dismiss stuck in-progress calls */}
                                     <button
                                         onClick={() => resolveCall(call.id)}
                                         title="Dismiss stuck call"
@@ -149,7 +202,6 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Chart */}
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
                 <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b" style={{ borderColor: T.border }}>
                     <div>

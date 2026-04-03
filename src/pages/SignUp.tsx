@@ -44,20 +44,20 @@ export default function SignUp() {
     if (session) return <Navigate to="/" replace />
 
     const generateSlug = (name: string) => {
-        return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Math.floor(Math.random() * 1000)
+        return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") + "-" + Math.floor(Math.random() * 1000)
     }
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault()
         setFormLoading(true)
         setError(null)
-        
+
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
             password,
             options: { data: { full_name: fullName } }
         })
-        
+
         if (authError) {
             setError(authError.message)
             setFormLoading(false)
@@ -65,32 +65,28 @@ export default function SignUp() {
         }
 
         if (authData.user) {
-            // 1. Create Business Record
             const slug = generateSlug(businessName)
-            const { error: bizError } = await supabase.from('businesses').insert({
+            const { error: bizError } = await supabase.from("businesses").insert({
                 owner_id: authData.user.id,
                 name: businessName,
                 slug,
                 industry: "Healthcare",
-                agent_name: "Shubh" // Default
+                agent_name: "Shubh",
             })
 
             if (bizError) {
                 console.warn("Business record error (non-fatal):", bizError)
-                // Account itself was created successfully — show success and let them log in.
-                // Business record may be created via DB trigger or can be set up after login.
             }
 
-            // 2. Initialize Google Sheet Tab (Fire-and-forget for speed)
-            const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL;
+            const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
             if (bridgeUrl) {
                 fetch(bridgeUrl, {
                     method: "POST",
                     mode: "no-cors",
                     body: JSON.stringify({ type: "INIT_OWNER", businessName })
-                }).catch(err => console.error("Bridge Init Error:", err));
+                }).catch(err => console.error("Bridge Init Error:", err))
             }
-            
+
             setSuccess(true)
             setFormLoading(false)
         }
@@ -113,7 +109,7 @@ export default function SignUp() {
                     </p>
                     <Link to="/login"
                         className="inline-flex items-center gap-2 text-[13px] text-white/40 hover:text-white/70 transition-colors">
-                        ← Back to Login
+                        Back to Login
                     </Link>
                 </div>
             </div>
@@ -124,7 +120,6 @@ export default function SignUp() {
         <div className="flex h-screen w-screen overflow-hidden bg-[#080808]"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
 
-            {/* ── LEFT PANEL — India Visual ── */}
             <div className="hidden lg:block relative w-[55%] h-full overflow-hidden">
                 <img
                     src="/india-arch.png"
@@ -134,7 +129,6 @@ export default function SignUp() {
                 <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-[#080808]" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                {/* Value props */}
                 <div className="absolute bottom-12 left-10 right-16">
                     <p className="text-white/70 mb-6"
                         style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", fontSize: "1.1rem" }}>
@@ -158,19 +152,16 @@ export default function SignUp() {
                 </div>
             </div>
 
-            {/* ── RIGHT PANEL — Signup Form ── */}
             <div className="flex-1 flex flex-col items-center justify-center px-8 relative overflow-y-auto">
                 <MandalaDecor className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] text-white/[0.03] pointer-events-none select-none" />
 
                 <div className="relative z-10 w-full max-w-[380px] py-12">
-                    {/* Back to Landing */}
                     <Link to="/"
                         className="inline-flex items-center gap-1.5 text-[12px] text-white/25 hover:text-white/50 transition-colors mb-8 group">
                         <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         Back to Home
                     </Link>
 
-                    {/* Top brand title */}
                     <div className="mb-10">
                         <h2 className="text-[2.8rem] text-white leading-none tracking-tight"
                             style={{ fontFamily: "'Instrument Serif', serif" }}>
@@ -178,7 +169,6 @@ export default function SignUp() {
                         </h2>
                     </div>
 
-                    {/* Headline */}
                     <div className="mb-10">
                         <h1 className="text-[2rem] leading-tight text-white mb-2"
                             style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>
@@ -189,7 +179,6 @@ export default function SignUp() {
                         </p>
                     </div>
 
-                    {/* Error */}
                     {error && (
                         <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[13px]">
                             {error}
@@ -197,7 +186,6 @@ export default function SignUp() {
                     )}
 
                     <form onSubmit={handleSignUp} className="space-y-4">
-                        {/* Business Name */}
                         <div>
                             <label className="block text-[11px] text-white/30 font-medium tracking-widest uppercase mb-2">
                                 Business Name
@@ -213,7 +201,6 @@ export default function SignUp() {
                             />
                         </div>
 
-                         {/* Industry — Healthcare only; others show Coming Soon */}
                         <div>
                             <label className="block text-[11px] text-white/30 font-medium tracking-widest uppercase mb-2">
                                 Industry
@@ -225,18 +212,18 @@ export default function SignUp() {
                                 disabled={formLoading}
                                 className="w-full bg-white/5 border border-white/8 text-white text-[14px] px-4 py-3.5 rounded-xl outline-none focus:border-white/20 focus:bg-white/8 transition-all appearance-none"
                             >
-                                <option value="Healthcare" className="bg-[#0d0d0d]">Healthcare / Dental ✓ Available</option>
-                                <option disabled className="bg-[#0d0d0d] text-white/30">Real Estate — Coming Soon</option>
-                                <option disabled className="bg-[#0d0d0d] text-white/30">Retail — Coming Soon</option>
-                                <option disabled className="bg-[#0d0d0d] text-white/30">Education — Coming Soon</option>
-                                <option disabled className="bg-[#0d0d0d] text-white/30">Other Business — Coming Soon</option>
+                                <option value="Healthcare" className="bg-[#0d0d0d]">Healthcare / Dental Available</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Customer Support - Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Survey &amp; Feedback Intake - Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Hotel Reservation Agent - Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Order Status &amp; Tracking - Coming Soon</option>
+                                <option disabled className="bg-[#0d0d0d] text-white/30">Other Business - Coming Soon</option>
                             </select>
                             <p className="text-[11px] mt-1.5" style={{ color: "rgba(255,255,255,0.2)" }}>
-                                More industries launching soon. Currently optimised for dental &amp; healthcare.
+                                More workflows are launching soon. Healthcare / Dental is currently the only selectable option.
                             </p>
                         </div>
 
-                        {/* Full Name */}
                         <div>
                             <label className="block text-[11px] text-white/30 font-medium tracking-widest uppercase mb-2">
                                 Owner Name
@@ -252,7 +239,6 @@ export default function SignUp() {
                             />
                         </div>
 
-                        {/* Email */}
                         <div>
                             <label className="block text-[11px] text-white/30 font-medium tracking-widest uppercase mb-2">
                                 Email
@@ -268,7 +254,6 @@ export default function SignUp() {
                             />
                         </div>
 
-                        {/* Password */}
                         <div>
                             <label className="block text-[11px] text-white/30 font-medium tracking-widest uppercase mb-2">
                                 Password
@@ -280,12 +265,11 @@ export default function SignUp() {
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
                                 disabled={formLoading}
-                                placeholder="••••••••"
+                                placeholder="........"
                                 className="w-full bg-white/5 border border-white/8 text-white text-[14px] placeholder-white/20 px-4 py-3.5 rounded-xl outline-none focus:border-white/20 focus:bg-white/8 transition-all"
                             />
                         </div>
 
-                        {/* Submit */}
                         <button
                             type="submit"
                             disabled={formLoading}
@@ -312,8 +296,6 @@ export default function SignUp() {
                         className="w-full flex items-center justify-center gap-2 border border-white/10 text-white/50 text-[13px] font-medium py-3.5 rounded-xl hover:border-white/20 hover:text-white/70 transition-all">
                         Sign in instead
                     </Link>
-
-
                 </div>
             </div>
         </div>

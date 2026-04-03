@@ -602,9 +602,8 @@ export default function Landing() {
             <Marquee items={marqueeItems} />
 
             <section className="mx-auto max-w-7xl px-8 py-28">
-                <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[2.5rem] border border-white/5 bg-white/5 lg:grid-cols-4">
+                <div className="grid gap-px overflow-hidden rounded-[2.5rem] border border-white/5 bg-white/5 md:grid-cols-3">
                     {[
-                        { value: 99, suffix: ".9%", label: "Call answer rate" },
                         { value: 24, suffix: "/7", label: "Always active agent" },
                         { value: 22, suffix: "+", label: "Indian dialects supported" },
                         { value: 60, suffix: "s", label: "Ready to deploy" },

@@ -33,15 +33,18 @@ export default function Settings() {
     const [tab, setTab] = useState("business")
     const [saving, setSaving] = useState(false)
     const [form, setForm] = useState({
-        name: "", slug: "", industry: "", city: "", phone: "", address: "",
+        name: "", industry: "", city: "", phone: "", address: "",
         notif_whatsapp: false, notif_reminder: false, notif_phone: "",
     })
 
     useEffect(() => {
         if (business) setForm(f => ({
-            ...f, name: business.name || "", slug: business.slug || "",
-            industry: business.industry || "", city: business.city || "",
-            phone: business.phone || "", address: business.address || "",
+            ...f,
+            name: business.name || "",
+            industry: business.industry || "",
+            city: business.city || "",
+            phone: business.phone || "",
+            address: business.address || "",
         }))
     }, [business])
 
@@ -52,7 +55,7 @@ export default function Settings() {
         if (!business) return
         setSaving(true)
         const payload = tab === "business"
-            ? { name: form.name, slug: form.slug, industry: form.industry, city: form.city, phone: form.phone, address: form.address }
+            ? { name: form.name, industry: form.industry, city: form.city, phone: form.phone, address: form.address }
             : {}
         const { error } = await supabase.from("businesses").update(payload).eq("id", business.id)
         setSaving(false)
@@ -74,7 +77,6 @@ export default function Settings() {
                 </h1>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-0 border-b mb-8" style={{ borderColor: T.border }}>
                 {tabs.map(t => (
                     <button key={t.id} onClick={() => setTab(t.id)}
@@ -89,14 +91,12 @@ export default function Settings() {
             <form onSubmit={save}>
                 {tab === "business" && (
                     <div className="space-y-6 max-w-xl">
+                        <div className="rounded-xl border px-4 py-4 text-[13px] leading-relaxed" style={{ background: T.surface, borderColor: T.border, color: T.muted }}>
+                            Your public voice link is set by the admin team, so you only need to enter the business details required for setup.
+                        </div>
                         <Field label="Business name">
                             <input value={form.name} onChange={e => up("name", e.target.value)}
                                 placeholder="Your business name" className={inputCls}
-                                style={{ borderColor: T.border, color: T.text }} />
-                        </Field>
-                        <Field label="URL slug" hint="Used in your public voice link. Letters, numbers, hyphens only.">
-                            <input value={form.slug} onChange={e => up("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-"))}
-                                placeholder="my-clinic" className={inputCls}
                                 style={{ borderColor: T.border, color: T.text }} />
                         </Field>
                         <div className="grid grid-cols-2 gap-4">

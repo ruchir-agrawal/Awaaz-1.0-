@@ -39,7 +39,6 @@ import AdminDashboard from "./pages/admin/Dashboard"
 import AdminOwnersList from "./pages/admin/Owners"
 import AdminOwnerDetail from "./pages/admin/OwnerDetail"
 import AdminHealth from "./pages/admin/Health"
-import AdminApiMonitor from "./pages/admin/ApiMonitor"
 import AdminBilling from "./pages/admin/Billing"
 
 function AppRoutes() {
@@ -77,7 +76,6 @@ function AppRoutes() {
         <Route path="owners" element={<AdminOwnersList />} />
         <Route path="owners/:id" element={<AdminOwnerDetail />} />
         <Route path="health" element={<AdminHealth />} />
-        <Route path="api-monitor" element={<AdminApiMonitor />} />
         <Route path="playground" element={<Playground />} />
         <Route path="billing" element={<AdminBilling />} />
       </Route>
