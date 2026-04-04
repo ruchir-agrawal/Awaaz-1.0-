@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #f4f6f0;
+  --color-primary-100: #e5eadc;
+  --color-primary-200: #cbdbbe;
+  --color-primary-300: #abc399;
+  --color-primary-400: #88a673;
+  --color-primary-500: #6b8a54;
+  --color-primary-600: #505B40; /* Main Primary */
+  --color-primary-700: #424e33;
+  --color-primary-800: #353f2a;
+  --color-primary-900: #2d3525;
+  --color-primary-950: #161c11;
+
+  --color-success-500: #9BA187; /* Main Success */
+  --color-success-600: #7d8469;
+
+  --color-warning-500: #E8DACB; /* Main Warning */
+  --color-warning-600: #cbbba9;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+}
+
+@layer base {
+  :root {
+    --background: #fafafa;
+    --foreground: #09090b;
+    --card: #ffffff;
+    --card-foreground: #09090b;
+    --border: #e4e4e7;
+    --input: #e4e4e7;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --radius: 0.5rem;
+  }
+
+  /* Dark mode supports class "dark" for manual toggle */
+  .dark {
+    --background: #09090b;
+    --foreground: #fafafa;
+    --card: #18181b;
+    --card-foreground: #fafafa;
+    --border: #27272a;
+    --input: #27272a;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
+
+/* Landing page marquee animation */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+
+@keyframes orbDriftA {
+  0% { transform: translate(-8%, -6%) scale(1); }
+  50% { transform: translate(10%, 8%) scale(1.08); }
+  100% { transform: translate(-8%, -6%) scale(1); }
+}
+
+@keyframes orbDriftB {
+  0% { transform: translate(10%, -8%) scale(1.02); }
+  50% { transform: translate(-12%, 10%) scale(0.92); }
+  100% { transform: translate(10%, -8%) scale(1.02); }
+}
+
+@keyframes orbDriftC {
+  0% { transform: translate(-4%, 12%) scale(0.98); }
+  50% { transform: translate(12%, -10%) scale(1.1); }
+  100% { transform: translate(-4%, 12%) scale(0.98); }
+}
+
+@keyframes orbPulse {
+  0% { transform: scale(0.98); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(0.98); }
+}
+
+@keyframes orbRing {
+  0% { transform: scale(0.86); opacity: 0.42; }
+  100% { transform: scale(1.16); opacity: 0; }
+}
+
+.agent-orb-shell {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.agent-orb-core {
+  position: absolute;
+  inset: 12%;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255,255,255,0.34), rgba(255,255,255,0.08) 28%, transparent 42%),
+    linear-gradient(145deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -18px 45px rgba(0,0,0,0.28);
+  animation: orbPulse 4.5s ease-in-out infinite;
+}
+
+.agent-orb-blob {
+  position: absolute;
+  inset: 20%;
+  border-radius: 42% 58% 57% 43% / 42% 46% 54% 58%;
+  filter: blur(16px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+  will-change: transform, border-radius, filter;
+}
+
+.agent-orb-blob-a {
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.56), rgba(255,255,255,0.10) 60%, transparent 82%);
+  animation: orbDriftA 7.2s ease-in-out infinite;
+}
+
+.agent-orb-blob-b {
+  background: radial-gradient(circle at 60% 40%, rgba(248, 214, 149, 0.68), rgba(173, 103, 34, 0.12) 58%, transparent 80%);
+  animation: orbDriftB 8.4s ease-in-out infinite;
+}
+
+.agent-orb-blob-c {
+  background: radial-gradient(circle at 55% 55%, rgba(255,255,255,0.2), rgba(255,255,255,0.06) 62%, transparent 86%);
+  animation: orbDriftC 6.6s ease-in-out infinite;
+}
+
+.agent-orb-shell[data-state="thinking"] .agent-orb-blob,
+.agent-orb-shell[data-state="listening"] .agent-orb-blob,
+.agent-orb-shell[data-state="speaking"] .agent-orb-blob {
+  filter: blur(24px);
+  opacity: 0.88;
+}
+
+.agent-orb-shell[data-state="listening"] .agent-orb-blob-a,
+.agent-orb-shell[data-state="listening"] .agent-orb-blob-b,
+.agent-orb-shell[data-state="listening"] .agent-orb-blob-c {
+  animation-duration: 2.8s;
+}
+
+.agent-orb-shell[data-state="speaking"] .agent-orb-blob-a,
+.agent-orb-shell[data-state="speaking"] .agent-orb-blob-b,
+.agent-orb-shell[data-state="speaking"] .agent-orb-blob-c {
+  animation-duration: 1.8s;
+  filter: blur(28px);
+}
+
+.agent-orb-shell[data-state="thinking"] .agent-orb-core,
+.agent-orb-shell[data-state="listening"] .agent-orb-core,
+.agent-orb-shell[data-state="speaking"] .agent-orb-core {
+  animation-duration: 1.6s;
+}
+
+.agent-orb-shell[data-state="speaking"] .agent-orb-ring,
+.agent-orb-shell[data-state="listening"] .agent-orb-ring {
+  position: absolute;
+  inset: 8%;
+  border-radius: 9999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  animation: orbRing 1.7s ease-out infinite;
+}
