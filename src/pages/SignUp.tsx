@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, Navigate } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
+import { DEFAULT_BUSINESS_SHEET_TAB, isBusinessSheetSchemaMissing, provisionBusinessSheet } from "@/lib/googleSheet"
 import { useAuth } from "@/contexts/AuthContext"
 import { Loader2, ArrowRight, Check, ArrowLeft } from "lucide-react"
 
@@ -66,6 +67,33 @@ export default function SignUp() {
 
         if (authData.user) {
             const slug = generateSlug(businessName)
+            const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
+            let sheetConfig: {
+                google_sheet_id?: string
+                google_sheet_url?: string
+                google_sheet_tab_name?: string
+            } = {}
+
+            if (bridgeUrl) {
+                try {
+                    const provisioned = await provisionBusinessSheet(bridgeUrl, {
+                        businessName,
+                        sheetName: DEFAULT_BUSINESS_SHEET_TAB,
+                        createDedicatedSpreadsheet: true,
+                    })
+
+                    if (provisioned.status === "success" || provisioned.status === "ok") {
+                        sheetConfig = {
+                            google_sheet_id: provisioned.spreadsheetId || undefined,
+                            google_sheet_url: provisioned.spreadsheetUrl || undefined,
+                            google_sheet_tab_name: provisioned.sheetName || DEFAULT_BUSINESS_SHEET_TAB,
+                        }
+                    }
+                } catch (bridgeError) {
+                    console.warn("Business sheet provisioning failed (non-fatal):", bridgeError)
+                }
+            }
+
             const { error: bizError } = await supabase.from("businesses").insert({
                 owner_id: authData.user.id,
                 name: businessName,
@@ -76,15 +104,24 @@ export default function SignUp() {
 
             if (bizError) {
                 console.warn("Business record error (non-fatal):", bizError)
-            }
+            } else if (sheetConfig.google_sheet_id || sheetConfig.google_sheet_url) {
+                const { error: sheetError } = await supabase
+                    .from("businesses")
+                    .update({
+                        google_sheet_id: sheetConfig.google_sheet_id ?? null,
+                        google_sheet_url: sheetConfig.google_sheet_url ?? null,
+                        google_sheet_tab_name: sheetConfig.google_sheet_tab_name || DEFAULT_BUSINESS_SHEET_TAB,
+                    })
+                    .eq("owner_id", authData.user.id)
+                    .eq("slug", slug)
 
-            const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
-            if (bridgeUrl) {
-                fetch(bridgeUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ type: "INIT_OWNER", businessName })
-                }).catch(err => console.error("Bridge Init Error:", err))
+                if (sheetError) {
+                    if (isBusinessSheetSchemaMissing(sheetError.message)) {
+                        console.warn("Business sheet columns are not migrated in Supabase yet.")
+                    } else {
+                        console.warn("Business sheet metadata update failed (non-fatal):", sheetError)
+                    }
+                }
             }
 
             setSuccess(true)

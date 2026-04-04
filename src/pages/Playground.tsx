@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useVoiceAgent } from "@/hooks/useVoiceAgent"
 import { useBusinessData } from "@/hooks/useBusinessData"
+import { buildBridgeGetUrl, getBusinessSheetTarget } from "@/lib/googleSheet"
 import { useState } from "react"
 import { Mic, Trash2, Activity, AlertCircle, MessageSquare, BrainCircuit, Sparkles } from "lucide-react"
 
@@ -52,7 +53,7 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`
             const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
             if (bridgeUrl && business.name) {
                 try {
-                    const res = await fetch(`${bridgeUrl}?businessName=${encodeURIComponent(business.name)}`)
+                    const res = await fetch(buildBridgeGetUrl(bridgeUrl, getBusinessSheetTarget(business)))
                     const json = await res.json()
                     if (json.status === "ok" && json.appointments?.length > 0) {
                         const lines = json.appointments.map((a: any) =>
@@ -70,6 +71,8 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`
     const { agentState, messages, errorMsg, startListening, stopAgent, clearHistory } = useVoiceAgent({
         systemPrompt,
         businessName: business?.name,
+        businessSheetId: business?.google_sheet_id,
+        businessSheetTabName: business?.google_sheet_tab_name,
         useCloudLLM: true,
         isContinuous: true,
     })

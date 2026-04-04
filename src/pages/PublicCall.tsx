@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Mic, Square, Activity, BrainCircuit, AlertCircle, PhoneIncoming, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { buildBridgeGetUrl, getBusinessSheetTarget } from "@/lib/googleSheet";
 import type { Business } from "@/types/database";
 
 export default function PublicCall() {
@@ -75,7 +76,7 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
             const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL;
             if (bridgeUrl && business.name) {
                 try {
-                    const res = await fetch(`${bridgeUrl}?businessName=${encodeURIComponent(business.name)}`);
+                    const res = await fetch(buildBridgeGetUrl(bridgeUrl, getBusinessSheetTarget(business)));
                     const json = await res.json();
                     if (json.status === 'ok' && json.appointments && json.appointments.length > 0) {
                         const apptLines = json.appointments.map((a: any) =>
@@ -102,6 +103,8 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
     } = useVoiceAgent({
         systemPrompt,
         businessName: business?.name,
+        businessSheetId: business?.google_sheet_id,
+        businessSheetTabName: business?.google_sheet_tab_name,
         useCloudLLM: true,
         isContinuous: true
     });

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getSarvamSTT, getSarvamTTS } from "@/lib/sarvam";
+import { buildBridgePayload, postBridgeJson } from "@/lib/googleSheet";
 import { type ChatMessage } from "@/lib/ollama";
 
 export type AgentState = "idle" | "listening" | "thinking" | "speaking" | "error";
@@ -7,6 +8,8 @@ export type AgentState = "idle" | "listening" | "thinking" | "speaking" | "error
 interface UseVoiceAgentProps {
     systemPrompt: string;
     businessName?: string;
+    businessSheetId?: string | null;
+    businessSheetTabName?: string | null;
     model?: string;
     cloudModel?: string;
     useCloudLLM?: boolean;
@@ -48,6 +51,8 @@ function splitIntoSentences(text: string): { sentences: string[]; remainder: str
 export function useVoiceAgent({
     systemPrompt,
     businessName = "Awaaz Business",
+    businessSheetId,
+    businessSheetTabName,
     model = "qwen2.5:7b",
     cloudModel,
     useCloudLLM = true,
@@ -518,16 +523,14 @@ export function useVoiceAgent({
                             params.phone_number = raw.replace(/[^\d+]/g, '');
                         }
 
-                        fetch(bridgeUrl, {
-                            method: "POST",
-                            mode: "no-cors",
-                            body: JSON.stringify({
-                                type: actionType,
-                                businessName,
-                                data: params,
-                                transcript
-                            }),
-                        }).catch(err => console.error("Bridge Error:", err));
+                        void postBridgeJson(bridgeUrl, buildBridgePayload(actionType, {
+                            businessName,
+                            spreadsheetId: businessSheetId,
+                            sheetName: businessSheetTabName,
+                        }, {
+                            data: params,
+                            transcript,
+                        })).catch(err => console.error("Bridge Error:", err));
 
                         hasLoggedRef.current = true;
                     }
@@ -683,21 +686,19 @@ export function useVoiceAgent({
             const phoneMatch = fullText.match(/(\+?[0-9]{10,13})/);
             const reasonMatch = fullText.match(/(?:root canal|cleaning|filling|braces|implant|consultation|whitening|cosmetic|extraction|toothache|tooth pain|cavity)/i);
 
-            fetch(bridgeUrl, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify({
-                    type: 'LOG_CALL',
-                    businessName,
-                    data: {
-                        session_uid: "AUTO_LOG_INCOMPLETE",
-                        patient_name: nameMatch?.[1] || null,
-                        phone_number: phoneMatch?.[1] || null,
-                        service_reason: reasonMatch?.[0] || null,
-                    },
-                    transcript
-                }),
-            }).catch(() => { });
+            void postBridgeJson(bridgeUrl, buildBridgePayload("LOG_CALL", {
+                businessName,
+                spreadsheetId: businessSheetId,
+                sheetName: businessSheetTabName,
+            }, {
+                data: {
+                    session_uid: "AUTO_LOG_INCOMPLETE",
+                    patient_name: nameMatch?.[1] || null,
+                    phone_number: phoneMatch?.[1] || null,
+                    service_reason: reasonMatch?.[0] || null,
+                },
+                transcript,
+            })).catch(() => { });
         }
         // Reset for next session
         hasLoggedRef.current = false;
@@ -712,7 +713,7 @@ export function useVoiceAgent({
             currentAudio.current.currentTime = 0;
         }
         setAgentState("idle");
-    }, [businessName, disableSideEffects, stopMic]);
+    }, [businessName, businessSheetId, businessSheetTabName, disableSideEffects, stopMic]);
 
     const clearHistory = useCallback(() => {
         const resetMessages: ChatMessage[] = [{ role: "system", content: systemPrompt }];

@@ -16,6 +16,9 @@ export interface Business {
   name: string
   slug: string
   cal_user_id: string | null
+  google_sheet_id: string | null
+  google_sheet_url: string | null
+  google_sheet_tab_name: string | null
   industry: string
   phone: string | null
   address: string | null

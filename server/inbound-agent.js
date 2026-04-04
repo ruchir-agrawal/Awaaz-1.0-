@@ -297,9 +297,18 @@ app.post("/voice/turn", optionalTwilioValidation, async (req, res) => {
     const digits = (req.body.Digits || "").trim();
 
     try {
-        if (digits === "0") {
-            await markSessionTransfer(session, "Caller pressed 0");
-            appendTransferOrFallback(twiml, session, "Connecting you to the clinic team.");
+        if (digits) {
+            if (digits === "0") {
+                await markSessionTransfer(session, "Caller pressed 0");
+                appendTransferOrFallback(twiml, session, "Connecting you to the clinic team.");
+                return respondWithTwiml(res, twiml);
+            }
+
+            appendGatherStep(
+                twiml,
+                `say:You pressed ${digits}. Please say how I can help you after the tone, or press 0 if you want to connect to the clinic team.`,
+                "/voice/turn"
+            );
             return respondWithTwiml(res, twiml);
         }
 
@@ -656,13 +665,56 @@ async function buildSystemPrompt({ business, customerPhone, sessionUid }) {
     ].filter(Boolean).join("\n\n");
 }
 
-async function fetchAppointmentsForPrompt(businessName) {
-    if (!googleBridgeUrl || !businessName) {
+function buildBridgeUrlForBusiness(business) {
+    if (!googleBridgeUrl || !business?.name) {
+        return "";
+    }
+
+    const spreadsheetId = business.google_sheet_id || extractSpreadsheetId(business.google_sheet_url);
+    const url = new URL(googleBridgeUrl);
+    url.searchParams.set("businessName", business.name);
+    if (spreadsheetId) {
+        url.searchParams.set("spreadsheetId", spreadsheetId);
+    }
+    if (business.google_sheet_tab_name) {
+        url.searchParams.set("sheetName", business.google_sheet_tab_name);
+    }
+    return url.toString();
+}
+
+function buildBridgePayloadForBusiness(type, business, extras = {}) {
+    const spreadsheetId = business?.google_sheet_id || extractSpreadsheetId(business?.google_sheet_url);
+    return {
+        type,
+        businessName: business?.name || "",
+        spreadsheetId: spreadsheetId || undefined,
+        sheetName: business?.google_sheet_tab_name || "Records",
+        ...extras,
+    };
+}
+
+function extractSpreadsheetId(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+        return "";
+    }
+
+    const match = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (match?.[1]) {
+        return match[1];
+    }
+
+    return /^[a-zA-Z0-9-_]{20,}$/.test(raw) ? raw : "";
+}
+
+async function fetchAppointmentsForPrompt(business) {
+    const bridgeFetchUrl = buildBridgeUrlForBusiness(business);
+    if (!bridgeFetchUrl) {
         return "";
     }
 
     try {
-        const response = await fetch(`${googleBridgeUrl}?businessName=${encodeURIComponent(businessName)}`);
+        const response = await fetch(bridgeFetchUrl);
         if (!response.ok) {
             return "";
         }
@@ -685,13 +737,14 @@ async function fetchAppointmentsForPrompt(businessName) {
     }
 }
 
-async function fetchBridgeAppointments(businessName) {
-    if (!googleBridgeUrl || !businessName) {
+async function fetchBridgeAppointments(business) {
+    const bridgeFetchUrl = buildBridgeUrlForBusiness(business);
+    if (!bridgeFetchUrl) {
         return [];
     }
 
     try {
-        const response = await fetch(`${googleBridgeUrl}?businessName=${encodeURIComponent(businessName)}`);
+        const response = await fetch(bridgeFetchUrl);
         if (!response.ok) {
             return [];
         }
@@ -857,7 +910,7 @@ function buildTranscript(session) {
 }
 
 async function buildCalendarAvailabilityResponse(session, existingResponse) {
-    const bridgeRows = await fetchBridgeAppointments(session.business.name);
+    const bridgeRows = await fetchBridgeAppointments(session.business);
     const requestedAnchor = inferRequestedDateTime(session);
     const availableSlots = computeAvailableSlots(session.business, bridgeRows, requestedAnchor).slice(0, 3);
 
@@ -1019,16 +1072,19 @@ async function ensureCallLogged(session, reason) {
 
     // 2. Log to Google Sheet via Bridge
     if (googleBridgeUrl) {
-        const payload = {
-            type: "log_call_data",
-            businessName: session.business.name,
+        const payload = buildBridgePayloadForBusiness("log_call_data", session.business, {
             data: {
                 ...session.captured,
                 phone_number: session.captured.phone_number || session.customerPhone || null,
                 service_reason: session.captured.service_reason || reason,
+                status: session.captured.appointment_datetime
+                    ? "Confirmed"
+                    : session.transferRequested
+                        ? "Transferred"
+                        : "Completed",
             },
             transcript,
-        };
+        });
 
         try {
             const response = await fetch(googleBridgeUrl, {
@@ -1257,7 +1313,7 @@ async function fetchAppointmentsForPromptEnhanced(business) {
     }
 
     if (lines.length === 0) {
-        return fetchAppointmentsForPrompt(business?.name);
+        return fetchAppointmentsForPrompt(business);
     }
 
     return `[EXISTING APPOINTMENTS - DO NOT DOUBLE BOOK THESE SLOTS]\nBefore confirming any new booking, check this list. If the requested time slot already has a confirmed appointment, say that slot is unavailable and suggest another one.\n\n${lines.join("\n")}`;
@@ -1294,6 +1350,8 @@ function appendGatherStep(twiml, audioUrl, actionPath) {
         speechTimeout: gatherSpeechTimeout,
         language: twilioLanguage,
         enhanced: true,
+        bargeIn: true,
+        actionOnEmptyResult: true,
     });
 
     if (audioUrl.startsWith("say:")) {

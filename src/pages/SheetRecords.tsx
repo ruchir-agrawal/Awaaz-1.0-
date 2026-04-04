@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useBusinessData } from "@/hooks/useBusinessData"
 import { supabase } from "@/lib/supabase"
+import { buildBridgeGetUrl, getBusinessSheetTarget, type BridgeResponse } from "@/lib/googleSheet"
 import { RefreshCw, ExternalLink, ChevronDown, ChevronUp, Clock, Download } from "lucide-react"
 
 const D = "'Syne', sans-serif"
@@ -30,25 +31,6 @@ interface SheetRow {
     sessionUid: string
     transcript: string
     recordingLink: string
-}
-
-interface BridgeAppointmentRow {
-    callTime?: string
-    patientName?: string
-    mobile?: string
-    newOrReturning?: string
-    reason?: string
-    appointmentDatetime?: string
-    status?: string
-    sessionUid?: string
-    transcript?: string
-    recordingLink?: string
-}
-
-interface BridgeResponse {
-    status: string
-    message?: string
-    appointments?: BridgeAppointmentRow[]
 }
 
 interface CallRecordFallback {
@@ -240,9 +222,19 @@ export default function SheetRecords() {
     }, [business?.id])
 
     const fetchData = useCallback(async (silent = false) => {
-        if (!business?.name || !bridgeUrl) {
+        if (!business?.name) {
             setLoading(false)
-            setError("Google Bridge URL not configured.")
+            setRows([])
+            setError("Business not configured.")
+            return
+        }
+
+        if (!bridgeUrl) {
+            const fallbackRows = await loadFallbackRowsFromCalls()
+            setRows(fallbackRows)
+            setLoading(false)
+            setRefreshing(false)
+            setError(fallbackRows.length > 0 ? null : "Google Bridge URL not configured.")
             return
         }
         if (!silent) setLoading(true)
@@ -250,7 +242,7 @@ export default function SheetRecords() {
         setError(null)
 
         try {
-            const res = await fetch(`${bridgeUrl}?businessName=${encodeURIComponent(business.name)}`)
+            const res = await fetch(buildBridgeGetUrl(bridgeUrl, getBusinessSheetTarget(business)))
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
             const json = await res.json() as BridgeResponse
 
@@ -281,7 +273,7 @@ export default function SheetRecords() {
             setRefreshing(false)
             setCountdown(AUTO_REFRESH_INTERVAL / 1000)
         }
-    }, [business?.name, bridgeUrl, loadFallbackRowsFromCalls])
+    }, [business, bridgeUrl, loadFallbackRowsFromCalls])
 
     useEffect(() => { fetchData() }, [fetchData])
 
@@ -327,6 +319,18 @@ export default function SheetRecords() {
                     <p className="text-[14px] mt-1" style={{ color: T.muted }}>
                         Live view of your Google Sheet â€” all call logs synced here. Downloads include text-only sheet data.
                     </p>
+                    {business?.google_sheet_url && (
+                        <a
+                            href={business.google_sheet_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[12px] mt-3 transition-opacity hover:opacity-80"
+                            style={{ color: T.gold }}
+                        >
+                            <ExternalLink className="w-3 h-3" />
+                            Open connected sheet
+                        </a>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3 mt-2 shrink-0">
