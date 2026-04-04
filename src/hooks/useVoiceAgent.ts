@@ -348,7 +348,7 @@ export function useVoiceAgent({
                 if (!apiKey) throw new Error(`${isGroq ? "Groq" : "xAI"} API Key missing`);
 
                 const endpoint = isGroq
-                    ? "/groq-api/openai/v1/chat/completions"
+                    ? "https://api.groq.com/openai/v1/chat/completions"
                     : "/xai-api/v1/chat/completions";
 
                 // Back to llama-3.3-70b-versatile
