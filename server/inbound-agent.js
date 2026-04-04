@@ -36,7 +36,8 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 app.use(express.json({ limit: "5mb" }));
 app.use("/generated-audio", express.static(audioDir, { maxAge: "1h" }));
 
-const port = Number(process.env.TELEPHONY_PORT || 8787);
+// const port = Number(process.env.TELEPHONY_PORT || 8787);
+const port = Number(process.env.PORT || process.env.TELEPHONY_PORT || 8787);
 const appBaseUrl = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
 const googleBridgeUrl = process.env.GOOGLE_BRIDGE_URL || process.env.VITE_GOOGLE_BRIDGE_URL || "";
 const sarvamApiKey = process.env.SARVAM_API_KEY || process.env.VITE_SARVAM_API_KEY || "";
@@ -242,7 +243,7 @@ app.post("/voice/incoming", optionalTwilioValidation, async (req, res) => {
         }
 
         const session = await getOrCreateSession({ callSid, customerPhone, inboundNumber, business });
-        
+
         // --- NEW: LOG TO SUPABASE ---
         if (supabase) {
             const { data: callData, error: callError } = await supabase
@@ -1056,8 +1057,8 @@ async function ensureCallLogged(session, reason) {
     }
 
     const durationSeconds = Math.round((Date.now() - session.startTime) / 1000);
-    const finalOutcome = session.transferRequested ? "transferred" : 
-                        (session.captured.appointment_datetime ? "booked" : "completed");
+    const finalOutcome = session.transferRequested ? "transferred" :
+        (session.captured.appointment_datetime ? "booked" : "completed");
 
     // 1. Log to Supabase (if callId exists)
     let bridgeRecordingUrl = null;
