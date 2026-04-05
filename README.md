@@ -1,6 +1,6 @@
-# Awaaz
+# Awaaz 
 
-Awaaz is an AI voice telephony service provider for businesses. It answers inbound calls, speaks with customers, captures booking details, logs outcomes, and gives owners and admins a simple dashboard to manage operations.
+Awaaz is an AI voice agent which provides telephony services for businesses. It answers inbound calls, speaks with customers, captures booking details, logs outcomes, and gives owners and admins a simple dashboard to manage operations.
 
 The product combines a React frontend, a Node telephony service, Supabase, Twilio, Google Sheets, and AI voice/model providers into one flow.
 
