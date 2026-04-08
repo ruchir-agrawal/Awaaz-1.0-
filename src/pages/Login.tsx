@@ -110,7 +110,7 @@ export default function Login() {
                             Welcome back.
                         </h1>
                         <p className="text-[13px] text-white/35 font-light">
-                            Sign in to your AI receptionist dashboard.
+                            Sign in to your dashboard.
                         </p>
                     </div>
 

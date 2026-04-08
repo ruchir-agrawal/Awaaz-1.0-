@@ -169,7 +169,7 @@ export default function SignUp() {
                 <div className="absolute bottom-12 left-10 right-16">
                     <p className="text-white/70 mb-6"
                         style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", fontSize: "1.1rem" }}>
-                        "Start your AI receptionist in 60 seconds."
+                        "Start your AI Agent in seconds."
                     </p>
 
                     <div className="space-y-2.5">
@@ -212,7 +212,7 @@ export default function SignUp() {
                             Create your account.
                         </h1>
                         <p className="text-[13px] text-white/35 font-light">
-                            Initialize your AI receptionist in seconds.
+                            Initialize your AI Agent in seconds.
                         </p>
                     </div>
 
@@ -245,7 +245,7 @@ export default function SignUp() {
                             <select
                                 required
                                 value="Healthcare"
-                                onChange={() => {}}
+                                onChange={() => { }}
                                 disabled={formLoading}
                                 className="w-full bg-white/5 border border-white/8 text-white text-[14px] px-4 py-3.5 rounded-xl outline-none focus:border-white/20 focus:bg-white/8 transition-all appearance-none"
                             >
