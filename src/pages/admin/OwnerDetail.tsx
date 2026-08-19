@@ -85,8 +85,9 @@ export default function AdminOwnerDetail() {
             if (error) throw error
             toast.success("Business profile created! You can now configure the AI.")
             if (refresh) await refresh()
-        } catch (err: any) {
-            toast.error(err.message || "Failed to create business profile")
+        } catch (err: unknown) {
+            const errObj = err as Error
+            toast.error(errObj.message || "Failed to create business profile")
         } finally {
             setCreating(false)
         }
@@ -109,8 +110,9 @@ export default function AdminOwnerDetail() {
             if (error) throw error
             toast.success("Agent configuration saved successfully")
             if (refresh) await refresh()
-        } catch (err: any) {
-            toast.error(err.message || "Failed to save configuration")
+        } catch (err: unknown) {
+            const errObj = err as Error
+            toast.error(errObj.message || "Failed to save configuration")
         } finally {
             setSaving(false)
         }

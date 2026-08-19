@@ -21,7 +21,15 @@ const PROVIDERS = [
     { name: "Sarvam AI (STT)", desc: "Transcription · multilingual", icon: Globe, lat: "280ms", up: 98.9 },
 ]
 
-function ServiceRow({ name, desc, icon: Icon, lat, up }: any) {
+interface ServiceRowProps {
+    name: string
+    desc: string
+    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+    lat: string
+    up: number
+}
+
+function ServiceRow({ name, desc, icon: Icon, lat, up }: ServiceRowProps) {
     const width = `${up}%`
     const barColor = up >= 99.5 ? "#4aaa78" : up >= 98 ? "#c8a034" : "#b85c35"
     return (

@@ -80,8 +80,8 @@ export default function Analytics() {
 
                 <div className="flex items-center gap-3">
                     <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: T.border }}>
-                        {["7", "30"].map(v => (
-                            <button key={v} onClick={() => setRange(v as any)}
+                        {(["7", "30"] as const).map(v => (
+                            <button key={v} onClick={() => setRange(v)}
                                 className="px-4 py-2 text-[12px] font-medium transition-all"
                                 style={{ background: range === v ? "rgba(200,160,52,0.1)" : "transparent", color: range === v ? T.gold : T.muted, fontFamily: I }}>
                                 {v}d
@@ -167,7 +167,7 @@ export default function Analytics() {
                                                     paddingAngle={3} dataKey="value" stroke="none">
                                                     {section.data.map((e, i) => <Cell key={i} fill={e.fill} />)}
                                                 </Pie>
-                                                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${v} calls`} />
+                                                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => `${String(v ?? 0)} calls`} />
                                             </PieChart>
                                         </ResponsiveContainer>
                                     </div>

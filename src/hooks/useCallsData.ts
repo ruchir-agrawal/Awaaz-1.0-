@@ -5,18 +5,14 @@ import { toast } from 'sonner'
 
 export function useCallsData(businessId: string | undefined) {
     const [calls, setCalls] = useState<Call[]>([])
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(Boolean(businessId))
 
     useEffect(() => {
-        if (!businessId) {
-            setLoading(false)
-            return
-        }
-
         let isMounted = true
 
+        if (!businessId) return
+
         const fetchCalls = async () => {
-            setLoading(true)
             const { data, error } = await supabase
                 .from('calls')
                 .select('*')

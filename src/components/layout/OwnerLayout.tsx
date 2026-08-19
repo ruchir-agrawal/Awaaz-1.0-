@@ -39,13 +39,9 @@ export function OwnerLayout() {
 
     return (
         <div
-            className="min-h-screen"
+            className="min-h-screen bg-[#080808] text-[#e8e4dd] antialiased"
             style={{
-                background: "#080808",
                 fontFamily: "'Inter', sans-serif",
-                zoom: "1.25",
-                width: "80%",
-                minWidth: "100%",
             }}
         >
             <div className="hidden lg:block">

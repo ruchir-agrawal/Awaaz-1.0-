@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { LoaderCircle, Mic, Square } from "lucide-react"
 import { prefetchSarvamTTS } from "@/lib/sarvam"
 import { useVoiceAgent } from "@/hooks/useVoiceAgent"
-import { DEFAULT_VOICES } from "@/components/landing/VoiceDropdownDisclosure"
+import { DEFAULT_VOICES } from "@/lib/voices"
 
 const dentalPrompt = `
 You are Awaaz, a conversational AI receptionist exclusively for SmileCraft Dental Clinic in India.
@@ -95,8 +95,7 @@ function VoiceConnector({
         requestAnimationFrame(() => {
             if (pathRef.current) setPathLen(pathRef.current.getTotalLength())
         })
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orbRef, chipRefs, selectedVoiceId]) // ← selectedVoiceId triggers rerenders on voice switch
+    }, [orbRef, chipRefs, selectedVoiceId])
 
     // Rerun on mount, voice change, and window resize
     useEffect(() => {
@@ -246,14 +245,6 @@ export function HeroVoiceExperience() {
         })
     }, [clearHistory, selectedVoiceId, stopAgent, selectedVoice.id])
 
-    useEffect(() => {
-        if (["speaking", "listening", "error", "idle"].includes(agentState)) {
-            setIsBufferingGreeting(false)
-        }
-    }, [agentState])
-
-
-
     const orbState =
         isBufferingGreeting || agentState === "thinking" ? "thinking"
             : agentState === "listening" ? "listening"
@@ -296,7 +287,11 @@ export function HeroVoiceExperience() {
         if (agentState !== "idle") return
         clearHistory()
         setIsBufferingGreeting(true)
-        await speakAssistantMessage(greetingText, true)
+        try {
+            await speakAssistantMessage(greetingText, true)
+        } finally {
+            setIsBufferingGreeting(false)
+        }
     }
 
     const handleStop = (e: React.MouseEvent) => {

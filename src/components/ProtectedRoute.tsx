@@ -23,11 +23,14 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     }
 
     if (requiredRole) {
-        if (requiredRole === 'admin' && userRole === 'owner') {
-            return <Navigate to="/owner" replace />
-        }
-        if (requiredRole === 'owner' && userRole === 'admin') {
-            return <Navigate to="/admin" replace />
+        if (userRole !== requiredRole) {
+            if (userRole === 'admin') {
+                return <Navigate to="/admin" replace />
+            }
+            if (userRole === 'owner') {
+                return <Navigate to="/owner" replace />
+            }
+            return <Navigate to="/login" replace />
         }
     }
 

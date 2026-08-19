@@ -94,7 +94,7 @@ export function useVoiceAgent({
     const currentAudio = useRef<HTMLAudioElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
-    const silenceTimeoutRef = useRef<any>(null);
+    const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const startListeningRef = useRef<() => Promise<void> | void>(() => { });
 
     // Audio playback queue — for sentence-streaming
@@ -339,146 +339,188 @@ export function useVoiceAgent({
             const currentHistory: ChatMessage[] = systemMsg ? [systemMsg, ...trimmedMsgs] : trimmedMsgs;
 
             if (useCloudLLM && (llmProvider === "groq" || llmProvider === "xai")) {
-                // ── STREAMING PATH (Groq / xAI) ─────────────────────────
+                // ── STREAMING PATH (Groq / xAI / Backend Proxy) ─────────────────────────
                 const isGroq = llmProvider === "groq";
                 const apiKey = isGroq
                     ? import.meta.env.VITE_GROQ_API_KEY
                     : import.meta.env.VITE_XAI_API_KEY;
+                const backendBase = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
 
-                if (!apiKey) throw new Error(`${isGroq ? "Groq" : "xAI"} API Key missing`);
-
-                const endpoint = isGroq
-                    ? "https://api.groq.com/openai/v1/chat/completions"
-                    : "/xai-api/v1/chat/completions";
-
-                // Back to llama-3.3-70b-versatile
-                const modelId = cloudModel ?? (isGroq ? "llama-3.3-70b-versatile" : "grok-3-mini");
-
-                lastStageStartedAtRef.current = performance.now();
-                const response = await fetch(endpoint, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${apiKey}`,
-                    },
-                    body: JSON.stringify({
-                        model: modelId,
-                        messages: currentHistory,
-                        temperature: 0.65,
-                        stream: true,
-                        max_tokens: maxTokens, // Voice responses should be short — caps token usage
-                    }),
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    const errMsg = errData.error?.message || "Unknown";
-                    // ── Auto-fallback to Gemini on Groq 429 or 400 ────────────
-                    const isBackoff = response.status === 429 || response.status === 400;
-                    if (isBackoff && import.meta.env.VITE_GEMINI_API_KEY) {
-                        console.warn("Groq error (backoff). Auto-falling back to Gemini Flash...");
-                        const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+                // If client API key is missing, route through backend chat proxy
+                if (!apiKey) {
+                    try {
+                        const proxyEndpoint = backendBase ? `${backendBase}/api/voice/chat` : "/api/voice/chat";
                         lastStageStartedAtRef.current = performance.now();
-                        const gemRes = await fetch(`/gemini-api/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+                        const proxyRes = await fetch(proxyEndpoint, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                                system_instruction: { parts: [{ text: systemMsg?.content || "" }] },
-                                contents: trimmedMsgs
-                                    .map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-                                generationConfig: { temperature: 0.65, maxOutputTokens: maxTokens },
+                                messages: currentHistory.filter(m => m.role !== "system"),
+                                systemPrompt: systemMsg?.content || systemPrompt,
+                                maxTokens,
                             }),
                         });
-                        if (gemRes.ok) {
-                            const gemData = await gemRes.json();
-                            setMetrics(prev => ({
-                                ...prev,
-                                lastResponseMs: lastStageStartedAtRef.current
-                                    ? Math.round(performance.now() - lastStageStartedAtRef.current)
-                                    : prev.lastResponseMs,
-                            }));
-                            fullResponse = gemData.candidates[0].content.parts[0].text;
-                            const { sentences, remainder } = splitIntoSentences(fullResponse);
-                            const allChunks = remainder.trim() ? [...sentences, remainder.trim()] : sentences;
-                            for (const chunk of allChunks) {
-                                const clean = chunk.replace(TAG_STRIP_REGEX, "").trim();
-                                if (clean) await speakSentence(clean);
-                            }
-                            // Jump straight to action parsing
-                        } else {
-                            throw new Error(`Groq error AND Gemini fallback failed: ${gemRes.status}`);
-                        }
-                    } else {
-                        throw new Error(`${isGroq ? "Groq" : "xAI"} API Error: ${response.status} - ${errMsg}`);
-                    }
-                }
 
-                const reader = response.body!.getReader();
-                const decoder = new TextDecoder();
-
-                while (true) {
-                    if (isRunCancelled(runId)) {
-                        await reader.cancel().catch(() => { });
-                        break;
-                    }
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split("\n");
-
-                    for (const line of lines) {
-                        if (!line.startsWith("data: ")) continue;
-                        const data = line.slice(6).trim();
-                        if (data === "[DONE]") break;
-
-                        try {
-                            const parsed = JSON.parse(data);
-                            const token = parsed.choices?.[0]?.delta?.content || "";
-                            if (!token) continue;
-
-                            if (fullResponse.length === 0 && lastStageStartedAtRef.current) {
+                        if (proxyRes.ok) {
+                            const proxyData = await proxyRes.json();
+                            if (proxyData?.text) {
+                                fullResponse = proxyData.text;
                                 setMetrics(prev => ({
                                     ...prev,
-                                    lastResponseMs: Math.round(performance.now() - lastStageStartedAtRef.current!),
+                                    lastResponseMs: lastStageStartedAtRef.current
+                                        ? Math.round(performance.now() - lastStageStartedAtRef.current)
+                                        : prev.lastResponseMs,
                                 }));
-                            }
-
-                            fullResponse += token;
-                            streamBuffer += token;
-
-                            // Check if we have any complete sentences in the buffer
-                            const { sentences, remainder } = splitIntoSentences(streamBuffer);
-                            if (sentences.length > 0) {
-                                streamBuffer = remainder;
-                                for (const sentence of sentences) {
-                                    // Strip [[...]] tags BEFORE TTS — AI must not speak them aloud
-                                    const cleanSentence = sentence.replace(TAG_STRIP_REGEX, "").trim();
-                                    if (cleanSentence && !isRunCancelled(runId)) speakSentence(cleanSentence, runId);
+                                const { sentences, remainder } = splitIntoSentences(fullResponse);
+                                const allChunks = remainder.trim() ? [...sentences, remainder.trim()] : sentences;
+                                for (const chunk of allChunks) {
+                                    const clean = chunk.replace(TAG_STRIP_REGEX, "").trim();
+                                    if (clean) await speakSentence(clean);
                                 }
                             }
-                        } catch {
-                            // Malformed SSE chunk — skip
+                        } else {
+                            throw new Error(`Backend chat proxy returned ${proxyRes.status}`);
+                        }
+                    } catch (proxyError) {
+                        console.error("Backend chat proxy error:", proxyError);
+                        throw new Error("Voice reasoning service is currently unavailable.");
+                    }
+                } else {
+                    const endpoint = isGroq
+                        ? "https://api.groq.com/openai/v1/chat/completions"
+                        : "https://api.x.ai/v1/chat/completions";
+
+                    const modelId = cloudModel ?? (isGroq ? "llama-3.3-70b-versatile" : "grok-3-mini");
+
+                    lastStageStartedAtRef.current = performance.now();
+                    const response = await fetch(endpoint, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${apiKey}`,
+                        },
+                        body: JSON.stringify({
+                            model: modelId,
+                            messages: currentHistory,
+                            temperature: 0.65,
+                            stream: true,
+                            max_tokens: maxTokens,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        const errMsg = errData.error?.message || "Unknown";
+                        // Auto-fallback to Gemini on Groq rate limits / errors
+                        const isBackoff = response.status === 429 || response.status === 400 || response.status === 503;
+                        if (isBackoff && import.meta.env.VITE_GEMINI_API_KEY) {
+                            console.warn("Groq error (backoff). Auto-falling back to Gemini Flash...");
+                            const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+                            lastStageStartedAtRef.current = performance.now();
+                            const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    system_instruction: { parts: [{ text: systemMsg?.content || "" }] },
+                                    contents: trimmedMsgs
+                                        .map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+                                    generationConfig: { temperature: 0.65, maxOutputTokens: maxTokens },
+                                }),
+                            });
+                            if (gemRes.ok) {
+                                const gemData = await gemRes.json();
+                                setMetrics(prev => ({
+                                    ...prev,
+                                    lastResponseMs: lastStageStartedAtRef.current
+                                        ? Math.round(performance.now() - lastStageStartedAtRef.current)
+                                        : prev.lastResponseMs,
+                                }));
+                                fullResponse = gemData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                                const { sentences, remainder } = splitIntoSentences(fullResponse);
+                                const allChunks = remainder.trim() ? [...sentences, remainder.trim()] : sentences;
+                                for (const chunk of allChunks) {
+                                    const clean = chunk.replace(TAG_STRIP_REGEX, "").trim();
+                                    if (clean) await speakSentence(clean);
+                                }
+                            } else {
+                                throw new Error(`Groq error AND Gemini fallback failed: ${gemRes.status}`);
+                            }
+                        } else {
+                            throw new Error(`${isGroq ? "Groq" : "xAI"} API Error: ${response.status} - ${errMsg}`);
+                        }
+                    } else {
+                        const reader = response.body!.getReader();
+                        const decoder = new TextDecoder();
+
+                        while (true) {
+                            if (isRunCancelled(runId)) {
+                                await reader.cancel().catch(() => { });
+                                break;
+                            }
+                            const { done, value } = await reader.read();
+                            if (done) break;
+
+                            const chunk = decoder.decode(value, { stream: true });
+                            const lines = chunk.split("\n");
+
+                            for (const line of lines) {
+                                if (!line.startsWith("data: ")) continue;
+                                const data = line.slice(6).trim();
+                                if (data === "[DONE]") break;
+
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    const token = parsed.choices?.[0]?.delta?.content || "";
+                                    if (!token) continue;
+
+                                    if (fullResponse.length === 0 && lastStageStartedAtRef.current) {
+                                        setMetrics(prev => ({
+                                            ...prev,
+                                            lastResponseMs: Math.round(performance.now() - lastStageStartedAtRef.current!),
+                                        }));
+                                    }
+
+                                    fullResponse += token;
+                                    streamBuffer += token;
+
+                                    // Check if we have any complete sentences in the buffer
+                                    const { sentences, remainder } = splitIntoSentences(streamBuffer);
+                                    if (sentences.length > 0) {
+                                        streamBuffer = remainder;
+                                        for (const sentence of sentences) {
+                                            const cleanSentence = sentence.replace(TAG_STRIP_REGEX, "").trim();
+                                            if (cleanSentence) {
+                                                await speakSentence(cleanSentence);
+                                            }
+                                        }
+                                    }
+                                } catch {
+                                    // Partial JSON chunk, wait for next token
+                                }
+                            }
+                        }
+
+                        // Flush remaining trailing text in buffer after stream ends
+                        if (streamBuffer.trim().length > 0 && !isRunCancelled(runId)) {
+                            const cleanRemaining = streamBuffer.replace(TAG_STRIP_REGEX, "").trim();
+                            if (cleanRemaining) {
+                                await speakSentence(cleanRemaining);
+                            }
+                            streamBuffer = "";
                         }
                     }
-                }
-
-                // Flush any remaining buffer after stream ends
-                if (streamBuffer.trim()) {
-                    const cleanRemainder = streamBuffer.trim().replace(TAG_STRIP_REGEX, "").trim();
-                    if (cleanRemainder && !isRunCancelled(runId)) speakSentence(cleanRemainder, runId);
                 }
 
                 // Wait for ALL TTS chain calls to finish enqueuing
                 await ttsChainRef.current;
 
             } else if (useCloudLLM && llmProvider === "gemini") {
-                // ── NON-STREAMING PATH (Gemini) ──────────────────────────
+                // ── NON-STREAMING PATH (Gemini Direct) ──────────────────────────
                 const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
                 if (!geminiKey) throw new Error("Gemini API Key missing (VITE_GEMINI_API_KEY)");
 
                 lastStageStartedAtRef.current = performance.now();
-                const response = await fetch(`/gemini-api/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -560,7 +602,7 @@ export function useVoiceAgent({
                 while ((match = actionRegex.exec(fullResponse)) !== null) {
                     const actionType = match[1];
                     const actionParamsStr = match[2];
-                    const params: any = {};
+                    const params: Record<string, string> = {};
                     actionParamsStr.split("|").forEach(part => {
                         const [key, ...rest] = part.split(":").map(s => s.trim());
                         if (key && rest.length) params[key] = rest.join(":").trim();
@@ -628,14 +670,15 @@ export function useVoiceAgent({
                 }
             }
 
-        } catch (err: any) {
-            console.error("Pipeline Error:", err);
+        } catch (err: unknown) {
+            const errObj = err as Error;
+            console.error("Pipeline Error:", errObj);
             isPipelineActiveRef.current = false;
             if (stopRequestedRef.current) {
                 setAgentState("idle");
                 return;
             }
-            setErrorMsg(err.message || "An error occurred.");
+            setErrorMsg(errObj.message || "An error occurred.");
             setAgentState("error");
         }
     }, [
@@ -755,12 +798,21 @@ export function useVoiceAgent({
             setAgentState("listening");
             requestAnimationFrame(checkSilence);
 
-        } catch (err: any) {
-            console.error("Microphone error:", err);
-            setErrorMsg(`Microphone error: ${err.message || 'Check browser permissions'}`);
+        } catch (err: unknown) {
+            const errObj = err as Error;
+            console.error("Microphone error:", errObj);
+            setErrorMsg(`Microphone error: ${errObj.message || 'Check browser permissions'}`);
             setAgentState("error");
         }
-    }, [handlePipeline, stopCurrentAudio, stopMic]);
+    }, [
+        handlePipeline,
+        stopCurrentAudio,
+        stopMic,
+        SILENCE_THRESHOLD,
+        SILENCE_DURATION,
+        SILENCE_GRACE_PERIOD,
+        NOISE_CALIBRATION_MS
+    ]);
 
     useEffect(() => {
         startListeningRef.current = startListening;
