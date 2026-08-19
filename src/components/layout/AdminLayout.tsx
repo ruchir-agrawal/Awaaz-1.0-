@@ -66,31 +66,34 @@ export function AdminLayout() {
             </header>
 
             {open && (
-                <div className="fixed inset-0 z-50 lg:hidden">
-                    <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-                    <SessionNavBar
-                        pathname={pathname}
-                        items={navItems}
-                        organizationName="Awaaz Admin"
-                        accountName={accountName}
-                        accountEmail={accountEmail}
-                        accountInitials={getInitials(accountName)}
-                        onSignOut={async () => {
-                            setOpen(false)
-                            await signOut()
-                        }}
-                        bottomActionLabel="Billing"
-                        bottomActionTo="/admin/billing"
-                        accent="admin"
-                        collapsedByDefault={false}
-                        hoverExpand={false}
-                        className="!static !left-auto"
-                    />
+                <div className="fixed inset-0 z-50 lg:hidden flex">
+                    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={() => setOpen(false)} />
+                    <div className="relative z-10 w-64 max-w-[80vw] h-full shadow-2xl">
+                        <SessionNavBar
+                            pathname={pathname}
+                            items={navItems}
+                            organizationName="Awaaz Admin"
+                            accountName={accountName}
+                            accountEmail={accountEmail}
+                            accountInitials={getInitials(accountName)}
+                            onSignOut={async () => {
+                                setOpen(false)
+                                await signOut()
+                            }}
+                            onNavigate={() => setOpen(false)}
+                            bottomActionLabel="Billing"
+                            bottomActionTo="/admin/billing"
+                            accent="admin"
+                            collapsedByDefault={false}
+                            hoverExpand={false}
+                            className="!static !left-auto w-full"
+                        />
+                    </div>
                 </div>
             )}
 
             <main className="lg:pl-[240px] min-h-screen">
-                <div className="px-8 py-10 lg:px-12 max-w-6xl mx-auto">
+                <div className="px-4 py-6 sm:px-6 md:px-8 lg:px-12 max-w-6xl mx-auto">
                     <Outlet />
                 </div>
             </main>

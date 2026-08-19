@@ -121,7 +121,7 @@ export default function AdminOwnerDetail() {
     return (
         <div style={{ fontFamily: I }}>
             {/* Back + Header */}
-            <div className="flex items-start gap-4 mb-8">
+            <div className="flex items-start gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <button onClick={() => navigate("/admin/owners")}
                     className="w-9 h-9 rounded-lg flex items-center justify-center border transition-all hover:bg-[rgba(232,228,221,0.04)] mt-1 shrink-0"
                     style={{ borderColor: T.border, color: T.muted }}>
@@ -132,17 +132,17 @@ export default function AdminOwnerDetail() {
                     <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
                         {owner.full_name ?? owner.email ?? "Unknown owner"}
                     </h1>
-                    <p className="text-[14px] mt-1" style={{ color: T.muted }}>{owner.email}</p>
+                    <p className="text-[13px] sm:text-[14px] mt-1" style={{ color: T.muted }}>{owner.email}</p>
                 </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
                 {/* User */}
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                    <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
+                    <div className="px-5 sm:px-6 py-4 sm:py-5 border-b" style={{ borderColor: T.border }}>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Account</div>
                     </div>
-                    <div className="px-6">
+                    <div className="px-5 sm:px-6">
                         <Row label="User ID" value={owner.id} mono />
                         <Row label="Email" value={owner.email ?? "—"} />
                         <Row label="Full name" value={owner.full_name ?? "—"} />
@@ -153,11 +153,11 @@ export default function AdminOwnerDetail() {
 
                 {/* Business */}
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                    <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
+                    <div className="px-5 sm:px-6 py-4 sm:py-5 border-b" style={{ borderColor: T.border }}>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Business</div>
                     </div>
                     {biz ? (
-                        <div className="px-6">
+                        <div className="px-5 sm:px-6">
                             <Row label="Name" value={biz.name} />
                             <Row label="Industry" value={biz.industry ?? "—"} />
                             <Row label="City" value={biz.city ?? "—"} />
@@ -174,7 +174,7 @@ export default function AdminOwnerDetail() {
                             </div>
                         </div>
                     ) : (
-                        <div className="px-6 py-10 text-center">
+                        <div className="px-5 sm:px-6 py-8 sm:py-10 text-center">
                             <PlusCircle className="w-8 h-8 mx-auto mb-3 opacity-20" style={{ color: T.text }} />
                             <p className="text-[13px] mb-6" style={{ color: T.muted }}>No business profile found for this owner.</p>
                             <button 
@@ -192,7 +192,7 @@ export default function AdminOwnerDetail() {
                 {/* Agent Configuration Editor */}
                 {biz ? (
                     <div className="md:col-span-2 rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                        <div className="px-6 py-5 border-b flex items-center justify-between bg-[rgba(232,228,221,0.02)]" style={{ borderColor: T.border }}>
+                        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[rgba(232,228,221,0.02)]" style={{ borderColor: T.border }}>
                             <div className="flex items-center gap-2.5">
                                 <Bot className="w-4 h-4" style={{ color: T.gold }} />
                                 <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1.1rem", color: T.text }}>Agent Configuration</div>
@@ -200,15 +200,15 @@ export default function AdminOwnerDetail() {
                             <button 
                                 disabled={saving}
                                 onClick={handleSave}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-all hover:opacity-90 disabled:opacity-50"
+                                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-all hover:opacity-90 disabled:opacity-50"
                                 style={{ background: T.terra, color: T.text, fontFamily: I }}>
                                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                                 {saving ? "Saving..." : "Save Configuration"}
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-8">
-                            <div className="grid md:grid-cols-3 gap-6">
+                        <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                                 <div>
                                     <label className="block text-[10px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Agent Identity Name</label>
                                     <input 

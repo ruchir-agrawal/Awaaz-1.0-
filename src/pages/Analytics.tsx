@@ -70,31 +70,32 @@ export default function Analytics() {
     return (
         <div style={{ fontFamily: I }}>
             {/* Header */}
-            <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+            <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
-                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Analytics</p>
+                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Owner portal</p>
                     <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-                        {business?.agent_name ?? "Agent"} Insights
+                        Analytics
                     </h1>
+                    <p className="text-[13px] sm:text-[14px] mt-1" style={{ color: T.muted }}>Performance, call volume & conversation insights.</p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: T.border }}>
                         {(["7", "30"] as const).map(v => (
                             <button key={v} onClick={() => setRange(v)}
-                                className="px-4 py-2 text-[12px] font-medium transition-all"
+                                className="px-3 sm:px-4 py-2 text-[12px] font-medium transition-all"
                                 style={{ background: range === v ? "rgba(200,160,52,0.1)" : "transparent", color: range === v ? T.gold : T.muted, fontFamily: I }}>
                                 {v}d
                             </button>
                         ))}
                     </div>
                     <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/call/${business?.slug}`); toast.success("Link copied") }}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] transition-all border"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-[12px] transition-all border"
                         style={{ borderColor: T.border, color: T.muted, fontFamily: I }}>
                         <Share2 className="w-3.5 h-3.5" /> Share
                     </button>
                     <button onClick={() => toast.promise(new Promise(r => setTimeout(r, 1500)), { loading: "Generating…", success: "Downloaded!", error: "Failed" })}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium transition-all"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-[12px] font-medium transition-all"
                         style={{ background: T.goldBg, color: T.gold, border: "1px solid rgba(200,160,52,0.2)", fontFamily: I }}>
                         <Download className="w-3.5 h-3.5" /> Export
                     </button>
@@ -102,31 +103,31 @@ export default function Analytics() {
             </div>
 
             {/* Insight metric strip */}
-            <div className="flex divide-x rounded-xl border mb-8 overflow-hidden"
+            <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x rounded-xl border mb-6 sm:mb-8 overflow-hidden"
                 style={{ borderColor: T.border, background: T.surface }}>
                 {insightMetrics.map((m, i) => (
-                    <div key={i} className="flex-1 px-6 py-5">
-                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "2rem", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                    <div key={i} className="px-4 sm:px-6 py-4 sm:py-5 min-w-0">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.4rem, 2.5vw, 2rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
                             {m.value}
                         </div>
-                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
+                        <div className="mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
                     </div>
                 ))}
             </div>
 
             {/* Main chart */}
             <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: T.border, background: T.surface }}>
-                <div className="px-6 pt-6 pb-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
+                <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b flex flex-wrap items-center justify-between gap-2" style={{ borderColor: T.border }}>
                     <div>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Call volume</div>
-                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Total calls per day over {range} days</div>
+                        <div className="text-[11px] sm:text-[12px] mt-0.5" style={{ color: T.muted }}>Total calls per day over {range} days</div>
                     </div>
-                    <div className="flex items-center gap-4 text-[11px]" style={{ color: T.muted }}>
+                    <div className="flex items-center gap-4 text-[10px] sm:text-[11px]" style={{ color: T.muted }}>
                         <span className="flex items-center gap-1.5"><span className="w-4 h-px inline-block" style={{ background: T.gold }} /> Total</span>
                         <span className="flex items-center gap-1.5"><span className="w-4 h-px inline-block" style={{ background: "#b85c35" }} /> Missed</span>
                     </div>
                 </div>
-                <div className="px-2 pt-2 pb-4 h-[220px]">
+                <div className="px-2 pt-2 pb-4 h-[180px] sm:h-[220px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={volumeData} margin={{ top: 8, right: 16, left: -24, bottom: 0 }}>
                             <XAxis dataKey="d" axisLine={false} tickLine={false}
@@ -150,20 +151,20 @@ export default function Analytics() {
                     { title: "Language distribution", data: langs, empty: "No language data yet" },
                 ].map(section => (
                     <div key={section.title} className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                        <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
+                        <div className="px-5 sm:px-6 py-4 sm:py-5 border-b" style={{ borderColor: T.border }}>
                             <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>{section.title}</div>
                         </div>
-                        <div className="p-4">
+                        <div className="p-4 sm:p-5">
                             {section.data.length === 0 ? (
                                 <div className="h-[180px] flex items-center justify-center">
                                     <p className="text-[13px]" style={{ color: T.muted }}>{section.empty}</p>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-4">
-                                    <div className="flex-shrink-0 h-[180px] w-[180px]">
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="flex-shrink-0 h-[160px] w-[160px] sm:h-[180px] sm:w-[180px]">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
-                                                <Pie data={section.data} cx="50%" cy="50%" innerRadius={48} outerRadius={72}
+                                                <Pie data={section.data} cx="50%" cy="50%" innerRadius={44} outerRadius={68}
                                                     paddingAngle={3} dataKey="value" stroke="none">
                                                     {section.data.map((e, i) => <Cell key={i} fill={e.fill} />)}
                                                 </Pie>
@@ -171,7 +172,7 @@ export default function Analytics() {
                                             </PieChart>
                                         </ResponsiveContainer>
                                     </div>
-                                    <div className="flex-1 space-y-2">
+                                    <div className="flex-1 w-full space-y-2">
                                         {section.data.map((e, i) => (
                                             <div key={i} className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">

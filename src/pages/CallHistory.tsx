@@ -3,7 +3,7 @@ import { useBusinessData } from "@/hooks/useBusinessData"
 import { useCallsData } from "@/hooks/useCallsData"
 import type { Call } from "@/types/database"
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns"
-import { Search, X, FileText, Trash2, CheckCircle, Phone } from "lucide-react"
+import { Search, X, FileText, Trash2, Phone } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const D = "'Syne', sans-serif"
@@ -152,7 +152,7 @@ export default function CallHistory() {
                 )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 mb-5">
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 mb-5">
                 <div className="relative flex-1 min-w-[180px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: T.muted }} />
                     <input
@@ -163,111 +163,118 @@ export default function CallHistory() {
                         style={{ borderColor: T.border, color: T.text }}
                     />
                 </div>
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} style={{ borderColor: T.border, color: T.text }} />
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} style={{ borderColor: T.border, color: T.text }} />
-                <button
-                    onClick={() => setSort((current) => current === "desc" ? "asc" : "desc")}
-                    className={cn(inputCls, "flex items-center gap-1.5 cursor-pointer")}
-                    style={{ borderColor: T.border, color: T.muted }}
-                >
-                    {sort === "desc" ? "↓" : "↑"} {sort === "desc" ? "Newest" : "Oldest"}
-                </button>
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={cn(inputCls, "flex-1 sm:flex-initial")} style={{ borderColor: T.border, color: T.text }} />
+                    <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={cn(inputCls, "flex-1 sm:flex-initial")} style={{ borderColor: T.border, color: T.text }} />
+                    <button
+                        onClick={() => setSort((current) => current === "desc" ? "asc" : "desc")}
+                        className={cn(inputCls, "flex items-center justify-center gap-1.5 cursor-pointer flex-1 sm:flex-initial whitespace-nowrap")}
+                        style={{ borderColor: T.border, color: T.muted }}
+                    >
+                        {sort === "desc" ? "↓" : "↑"} {sort === "desc" ? "Newest" : "Oldest"}
+                    </button>
+                </div>
             </div>
 
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
-                <div
-                    className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
-                    style={{ gridTemplateColumns: "1fr 130px 90px 110px 80px 80px", background: T.surface, borderColor: T.border, color: T.muted }}
-                >
-                    <span>Caller</span>
-                    <span>When</span>
-                    <span>Duration</span>
-                    <span>Outcome</span>
-                    <span>Source</span>
-                    <span className="text-center">Actions</span>
-                </div>
+                <div className="overflow-x-auto w-full">
+                    <div className="min-w-[620px]">
+                        <div
+                            className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
+                            style={{ gridTemplateColumns: "1fr 130px 90px 110px 80px 80px", background: T.surface, borderColor: T.border, color: T.muted }}
+                        >
+                            <span>Caller</span>
+                            <span>When</span>
+                            <span>Duration</span>
+                            <span>Outcome</span>
+                            <span>Source</span>
+                            <span className="text-center">Actions</span>
+                        </div>
 
-                {filtered.length === 0 ? (
-                    <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
-                        <p className="text-[14px]" style={{ color: T.muted }}>No calls match your filters.</p>
-                    </div>
-                ) : (
-                    filtered.map((call, index) => {
-                        const outcomeStyle = OUTCOMES[call.outcome] ?? { label: call.outcome, color: T.muted, bg: "transparent" }
-                        const callerLabel = extractCallerName(call)
-                        const isConfirming = confirmDeleteId === call.id
-                        const isDeleting = deletingId === call.id
+                        {filtered.length === 0 ? (
+                            <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
+                                <p className="text-[14px]" style={{ color: T.muted }}>No calls match your filters.</p>
+                            </div>
+                        ) : (
+                            filtered.map((call, index) => {
+                                const outcomeStyle = OUTCOMES[call.outcome] ?? { label: call.outcome, color: T.muted, bg: "transparent" }
+                                const callerLabel = extractCallerName(call)
+                                const isConfirming = confirmDeleteId === call.id
+                                const isDeleting = deletingId === call.id
 
-                        return (
-                            <div
-                                key={call.id}
-                                onClick={() => setSelected(call)}
-                                className="grid px-5 py-4 border-b cursor-pointer transition-colors hover:bg-[rgba(232,228,221,0.02)]"
-                                style={{
-                                    gridTemplateColumns: "1fr 130px 90px 110px 80px 80px",
-                                    background: index % 2 === 0 ? "#0a0a0a" : "#090909",
-                                    borderColor: T.border,
-                                }}
-                            >
-                                <div>
-                                    <div className="text-[14px] font-medium" style={{ color: T.text }}>{callerLabel}</div>
-                                    {call.customer_phone && (
-                                        <div className="text-[11px] mt-1 flex items-center gap-1.5" style={{ color: T.muted }}>
-                                            <Phone className="w-3 h-3" /> {call.customer_phone}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="text-[13px] self-center" style={{ color: T.muted }}>
-                                    {format(parseISO(call.created_at), "MMM d, HH:mm")}
-                                </div>
-                                <div className="text-[13px] font-mono self-center tabular-nums" style={{ color: T.muted }}>
-                                    {fmtDur(call.duration_seconds)}
-                                </div>
-                                <div className="self-center">
-                                    <span className="text-[11px] font-medium px-2 py-1 rounded-md" style={{ color: outcomeStyle.color, background: outcomeStyle.bg }}>
-                                        {outcomeStyle.label}
-                                    </span>
-                                </div>
-                                <div className="text-[12px] self-center capitalize" style={{ color: T.muted }}>{call.call_source}</div>
-                                <div className="self-center flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                    <button
+                                return (
+                                    <div
+                                        key={call.id}
                                         onClick={() => setSelected(call)}
-                                        title="View transcript"
-                                        className="p-1.5 rounded-md transition-all hover:bg-[rgba(232,228,221,0.06)]"
-                                    >
-                                        <FileText className="w-3.5 h-3.5 opacity-40 hover:opacity-80 transition-opacity" style={{ color: T.text }} />
-                                    </button>
-
-                                    <button
-                                        onClick={(e) => handleDelete(e, call.id)}
-                                        disabled={isDeleting}
-                                        title={isConfirming ? "Click again to confirm delete" : "Delete call log"}
-                                        className="p-1.5 rounded-md transition-all"
+                                        className="grid px-5 py-4 border-b cursor-pointer transition-colors hover:bg-[rgba(232,228,221,0.02)]"
                                         style={{
-                                            background: isConfirming ? T.redBg : "transparent",
-                                            border: isConfirming ? `1px solid ${T.red}40` : "1px solid transparent",
+                                            gridTemplateColumns: "1fr 130px 90px 110px 80px 80px",
+                                            background: index % 2 === 0 ? "#0a0a0a" : "#090909",
+                                            borderColor: T.border,
                                         }}
                                     >
-                                        {isDeleting
-                                            ? <div className="w-3.5 h-3.5 rounded-full border border-t-[#c0392b] border-[rgba(192,57,43,0.2)] animate-spin" />
-                                            : isConfirming
-                                                ? <CheckCircle className="w-3.5 h-3.5" style={{ color: T.red }} />
-                                                : <Trash2 className="w-3.5 h-3.5 opacity-30 hover:opacity-80 transition-opacity" style={{ color: T.red }} />
-                                        }
-                                    </button>
-                                </div>
-                            </div>
-                        )
-                    })
-                )}
+                                        <div>
+                                            <div className="text-[14px] font-medium" style={{ color: T.text }}>{callerLabel}</div>
+                                            {call.customer_phone && (
+                                                <div className="text-[11px] mt-1 flex items-center gap-1.5" style={{ color: T.muted }}>
+                                                    <Phone className="w-3 h-3" /> {call.customer_phone}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-[13px] self-center" style={{ color: T.muted }}>
+                                            {format(parseISO(call.created_at), "MMM d, HH:mm")}
+                                        </div>
+                                        <div className="text-[13px] font-mono self-center tabular-nums" style={{ color: T.muted }}>
+                                            {fmtDur(call.duration_seconds)}
+                                        </div>
+                                        <div className="self-center">
+                                            <span className="text-[11px] font-medium px-2 py-1 rounded-md" style={{ color: outcomeStyle.color, background: outcomeStyle.bg }}>
+                                                {outcomeStyle.label}
+                                            </span>
+                                        </div>
+                                        <div className="text-[12px] self-center capitalize" style={{ color: T.muted }}>{call.call_source}</div>
+                                        <div className="self-center flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                onClick={() => setSelected(call)}
+                                                title="View transcript"
+                                                className="p-1.5 rounded-md transition-all hover:bg-[rgba(232,228,221,0.06)]"
+                                            >
+                                                <FileText className="w-3.5 h-3.5 opacity-40 hover:opacity-80 transition-opacity" style={{ color: T.text }} />
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => handleDelete(e, call.id)}
+                                                disabled={isDeleting}
+                                                title={isConfirming ? "Click again to confirm delete" : "Delete call log"}
+                                                className="p-1.5 rounded-md transition-all"
+                                                style={{
+                                                    background: isConfirming ? T.redBg : "transparent",
+                                                    border: isConfirming ? `1px solid ${T.red}40` : "1px solid transparent",
+                                                }}
+                                            >
+                                                <Trash2
+                                                    className="w-3.5 h-3.5 transition-all"
+                                                    style={{
+                                                        color: isConfirming ? T.red : T.muted,
+                                                        opacity: isConfirming ? 1 : 0.4,
+                                                    }}
+                                                />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                </div>
             </div>
 
             <p className="text-[11px] text-center mt-4" style={{ color: T.muted }}>{filtered.length} calls shown</p>
 
             {selected && (
                 <div className="fixed inset-0 z-50 flex justify-end">
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelected(null)} />
-                    <div className="relative w-full max-w-md h-full border-l flex flex-col" style={{ background: "#090909", borderColor: T.border, fontFamily: I }}>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelected(null)} />
+                    <div className="relative w-full max-w-md h-full border-l flex flex-col shadow-2xl" style={{ background: "#090909", borderColor: T.border, fontFamily: I }}>
                         <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: T.border }}>
                             <div>
                                 <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1.1rem", color: T.text }}>Transcript</div>
