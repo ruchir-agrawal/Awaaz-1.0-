@@ -224,7 +224,7 @@ export function HeroVoiceExperience() {
         useCloudLLM: true,
         isContinuous: true,
         llmProvider: "groq",
-        cloudModel: "llama-3.3-70b-versatile",
+        cloudModel: "groq/compound-mini",
         voiceSpeaker: selectedVoice.id,
         voicePace: 1.0,
         voiceLanguageCode: "hi-IN",

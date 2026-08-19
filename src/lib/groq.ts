@@ -3,7 +3,7 @@ export type ChatMessage = {
     content: string;
 };
 
-export async function getGroqResponse(messages: ChatMessage[], model: string = "llama-3.3-70b-versatile"): Promise<string> {
+export async function getGroqResponse(messages: ChatMessage[], model: string = "groq/compound-mini"): Promise<string> {
     const apiKey = import.meta.env.VITE_GROQ_API_KEY;
     if (!apiKey) {
         throw new Error("Groq API Key (VITE_GROQ_API_KEY) is missing in .env.local");

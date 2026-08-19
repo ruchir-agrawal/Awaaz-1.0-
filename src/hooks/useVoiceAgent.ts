@@ -390,7 +390,7 @@ export function useVoiceAgent({
                         ? "https://api.groq.com/openai/v1/chat/completions"
                         : "https://api.x.ai/v1/chat/completions";
 
-                    const modelId = cloudModel ?? (isGroq ? "llama-3.3-70b-versatile" : "grok-3-mini");
+                    const modelId = cloudModel ?? (isGroq ? "groq/compound-mini" : "grok-3-mini");
 
                     lastStageStartedAtRef.current = performance.now();
                     const response = await fetch(endpoint, {
@@ -411,10 +411,10 @@ export function useVoiceAgent({
                     if (!response.ok) {
                         const errData = await response.json().catch(() => ({}));
                         const errMsg = errData.error?.message || "Unknown";
-                        // Auto-fallback to Gemini on Groq rate limits / errors
-                        const isBackoff = response.status === 429 || response.status === 400 || response.status === 503;
-                        if (isBackoff && import.meta.env.VITE_GEMINI_API_KEY) {
-                            console.warn("Groq error (backoff). Auto-falling back to Gemini Flash...");
+                        console.warn(`Groq/xAI returned ${response.status} (${errMsg}). Auto-falling back to Gemini Flash...`);
+                        
+                        // Universal fallback to Gemini on any error
+                        if (import.meta.env.VITE_GEMINI_API_KEY) {
                             const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
                             lastStageStartedAtRef.current = performance.now();
                             const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
