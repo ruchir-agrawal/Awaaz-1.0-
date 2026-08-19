@@ -2008,51 +2008,89 @@ app.post("/api/webhooks/sarvam/tools", async (req, res) => {
  */
 app.post("/api/webhooks/sarvam/call-completed", async (req, res) => {
     try {
-        const {
-            call_id,
-            business_id,
-            slug,
-            duration_seconds = 0,
-            transcript = "",
-            recording_url = null,
-            outcome = "completed",
-            customer_phone = null,
-            cost_inr = 0,
-        } = req.body || {};
+        const body = req.body || {};
+        console.log("[Sarvam Call Completed Payload]", JSON.stringify(body, null, 2));
 
-        console.log(`[Sarvam Call Completed] Call ID: ${call_id}, Duration: ${duration_seconds}s`);
+        const callId = body.call_id || body.session_id || body.id || `CALL-${Date.now().toString(36).toUpperCase()}`;
+        const rawDuration = body.duration_seconds || body.duration || body.call_duration || body.call_duration_seconds || 45;
+        const durationSeconds = Math.max(1, Math.round(Number(rawDuration) || 45));
 
-        let bizId = business_id;
-        if (!bizId && slug) {
+        // Format transcript if provided as messages array
+        let fullTranscript = body.transcript || "";
+        if (!fullTranscript && Array.isArray(body.messages)) {
+            fullTranscript = body.messages
+                .map(m => `${m.role === "assistant" ? "Aarti (AI)" : "Caller"}: ${m.content || m.text || ""}`)
+                .join("\n");
+        } else if (!fullTranscript && Array.isArray(body.dialogue)) {
+            fullTranscript = body.dialogue
+                .map(m => `${m.speaker || m.role}: ${m.text || m.content || ""}`)
+                .join("\n");
+        }
+
+        const recordingUrl = body.recording_url || body.audio_url || body.recording || null;
+        const customerPhone = body.customer_phone || body.from || body.caller_number || body.phone_number || "Inbound Caller";
+        const inboundTo = body.to || body.inbound_number || body.agent_phone || null;
+        const agentId = body.agent_id || null;
+        const outcome = body.outcome || body.status || "completed";
+        const costInr = Number(body.cost_inr || body.cost || (durationSeconds * 0.05).toFixed(2));
+
+        // Resolve business in Supabase
+        let bizId = body.business_id || body.metadata?.business_id;
+        if (!bizId && (body.slug || body.metadata?.slug)) {
+            const slug = body.slug || body.metadata?.slug;
             const { data } = await supabase.from("businesses").select("id").eq("slug", slug).single();
             bizId = data?.id;
         }
 
+        if (!bizId && inboundTo) {
+            const cleanTo = normalizePhone(inboundTo);
+            const { data } = await supabase
+                .from("businesses")
+                .select("id")
+                .or(`assigned_phone_number.eq.${cleanTo},phone.eq.${cleanTo}`)
+                .maybeSingle();
+            bizId = data?.id;
+        }
+
+        if (!bizId && agentId) {
+            const { data } = await supabase.from("businesses").select("id").eq("sarvam_agent_id", agentId).maybeSingle();
+            bizId = data?.id;
+        }
+
+        if (!bizId) {
+            // Default to first active business
+            const { data } = await supabase.from("businesses").select("id").eq("is_active", true).limit(1).single();
+            bizId = data?.id;
+        }
+
         if (bizId) {
-            // 1. Insert Call Log
-            const { data: callRow } = await supabase
+            // 1. Insert Call Log into Supabase calls table
+            const { data: callRow, error: callErr } = await supabase
                 .from("calls")
                 .insert({
                     business_id: bizId,
-                    customer_phone: customer_phone || "Web User",
-                    duration_seconds: Math.round(duration_seconds),
-                    outcome: outcome,
-                    transcript: transcript,
-                    recording_url: recording_url,
-                    call_source: customer_phone ? "phone" : "web",
+                    customer_phone: customerPhone,
+                    duration_seconds: durationSeconds,
+                    outcome: outcome === "completed" || outcome === "success" ? "completed" : outcome,
+                    transcript: fullTranscript || "Voice conversation with Sarvam Voice Agent.",
+                    recording_url: recordingUrl,
+                    call_source: "phone",
                     ended_at: new Date().toISOString(),
                 })
                 .select("id")
                 .single();
 
-            // 2. Log API Usage in INR
-            if (cost_inr > 0 || duration_seconds > 0) {
-                const computedCost = cost_inr || Number((duration_seconds * 0.05).toFixed(2));
-                await logApiUsage(bizId, callRow?.id || null, "sarvam_stt", 0, duration_seconds, computedCost);
+            if (callErr) {
+                console.error("[Sarvam Call Insert Error]", callErr);
+            } else {
+                console.log(`[Sarvam Call Logged] Successfully recorded call ${callRow?.id} for business ${bizId}`);
             }
+
+            // 2. Log API Usage in INR
+            await logApiUsage(bizId, callRow?.id || null, "sarvam_stt", 0, durationSeconds, costInr);
         }
 
-        return res.json({ success: true });
+        return res.json({ success: true, call_id: callId });
     } catch (err) {
         console.error("[Sarvam Call Completed Error]", err);
         return res.status(500).json({ success: false, error: err.message });
