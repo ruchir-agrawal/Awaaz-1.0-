@@ -64,119 +64,16 @@ export default function Appointments() {
 
     const update = async (id: string, status: string) => {
         const { error } = await supabase.from("appointments").update({ status }).eq("id", id)
-        error ? toast.error("Failed to update") : toast.success(`Marked ${status}`)
+        if (error) {
+            toast.error("Failed to update")
+        } else {
+            toast.success(`Marked ${status}`)
+        }
     }
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-[60vh]">
             <div className="w-5 h-5 rounded-full border border-t-[#c8a034] border-[rgba(232,228,221,0.08)] animate-spin" />
-        </div>
-    )
-
-    const CalendarView = () => (
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_380px] gap-6">
-            <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
-                    <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(monthCursor, "MMMM yyyy")}</div>
-                    <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
-                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
-                            style={{ border: `1px solid ${T.border}`, color: T.muted }}>
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button type="button" onClick={() => { setMonthCursor(new Date()); setSelectedDate(new Date()) }}
-                            className="px-3 py-2 rounded-lg text-[12px] transition-all"
-                            style={{ border: `1px solid ${T.border}`, color: T.muted }}>
-                            Today
-                        </button>
-                        <button type="button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
-                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
-                            style={{ border: `1px solid ${T.border}`, color: T.muted }}>
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-                <div className="grid grid-cols-7 border-b" style={{ borderColor: T.border }}>
-                    {DAYS.map(d => (
-                        <div key={d} className="py-3 text-center text-[10px] uppercase tracking-wider border-r last:border-0"
-                            style={{ borderColor: T.border, color: T.muted }}>{d}</div>
-                    ))}
-                </div>
-                <div className="grid grid-cols-7">
-                    {calendarDays.map(day => {
-                        const dayAppointments = filtered.filter(a => isSameDay(parseISO(a.appointment_date), day))
-                        const inCurrentMonth = isSameMonth(day, monthCursor)
-                        const dayIsToday = isToday(day)
-                        const isSelected = isSameDay(day, selectedDate)
-                        return (
-                            <button key={day.toISOString()} type="button" onClick={() => setSelectedDate(day)}
-                                className="min-h-[110px] p-2 border-r border-b last:border-r-0 text-left transition-all"
-                                style={{
-                                    borderColor: T.border,
-                                    background: isSelected ? "rgba(200,160,52,0.08)" : dayIsToday ? "rgba(232,228,221,0.02)" : undefined,
-                                    opacity: inCurrentMonth ? 1 : 0.42,
-                                }}>
-                                <span className={cn("text-[12px] font-medium w-7 h-7 flex items-center justify-center rounded-full mb-2")}
-                                    style={{ background: isSelected || dayIsToday ? T.gold : "transparent", color: isSelected || dayIsToday ? "#000" : T.muted }}>
-                                    {format(day, "d")}
-                                </span>
-                                <div className="space-y-1">
-                                    {dayAppointments.slice(0, 2).map(a => (
-                                        <div key={a.id} className="text-[10px] px-2 py-1 rounded truncate"
-                                            style={{ background: a.call_id ? T.goldBg : T.blueBg, color: a.call_id ? T.gold : T.blue }}>
-                                            {a.appointment_time.slice(0, 5)} {a.customer_name}
-                                        </div>
-                                    ))}
-                                    {dayAppointments.length > 2 ? <div className="text-[10px]" style={{ color: T.muted }}>+{dayAppointments.length - 2} more</div> : null}
-                                    {dayAppointments.length === 0 ? <div className="text-[10px]" style={{ color: "rgba(232,228,221,0.18)" }}>No bookings</div> : null}
-                                </div>
-                            </button>
-                        )
-                    })}
-                </div>
-            </div>
-            <div className="rounded-xl border overflow-hidden h-fit" style={{ borderColor: T.border, background: T.surface }}>
-                <div className="px-5 py-4 border-b" style={{ borderColor: T.border }}>
-                    <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(selectedDate, "EEEE, MMMM d")}</div>
-                    <div className="text-[12px] mt-1" style={{ color: T.muted }}>
-                        {selectedDayAppointments.length} appointment{selectedDayAppointments.length === 1 ? "" : "s"}
-                    </div>
-                </div>
-                <div className="p-4 space-y-3">
-                    {selectedDayAppointments.length === 0 ? (
-                        <div className="rounded-xl border px-4 py-8 text-center" style={{ borderColor: T.border, color: T.muted }}>
-                            No appointments on this day.
-                        </div>
-                    ) : selectedDayAppointments.map(appointment => {
-                        const status = STATUS[appointment.status]
-                        const source = getAppointmentSource(appointment)
-                        const SourceIcon = source.icon
-                        return (
-                            <div key={appointment.id} className="rounded-xl border px-4 py-4" style={{ borderColor: T.border }}>
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <div className="text-[14px] font-medium" style={{ color: T.text }}>{appointment.customer_name}</div>
-                                        <div className="text-[12px] mt-1" style={{ color: T.muted }}>{appointment.customer_phone}</div>
-                                    </div>
-                                    <span className="text-[11px] font-medium px-2 py-1 rounded-md" style={{ color: status.color, background: status.bg }}>
-                                        {status.label}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2 mt-3 flex-wrap">
-                                    <span className="text-[11px] px-2 py-1 rounded-md" style={{ color: T.text, background: "rgba(232,228,221,0.06)" }}>
-                                        {appointment.appointment_time.slice(0, 5)}
-                                    </span>
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md" style={{ color: source.color, background: source.bg }}>
-                                        <SourceIcon className="w-3 h-3" />
-                                        {source.label}
-                                    </span>
-                                </div>
-                                {appointment.reason ? <div className="mt-3 text-[12px]" style={{ color: T.muted }}>Reason: {appointment.reason}</div> : null}
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
         </div>
     )
 
@@ -191,8 +88,8 @@ export default function Appointments() {
                     </h1>
                 </div>
                 <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: T.border }}>
-                    {[{ v: "list", icon: LayoutList }, { v: "calendar", icon: CalendarDays }].map(({ v, icon: Icon }) => (
-                        <button key={v} onClick={() => setView(v as any)}
+                    {([{ v: "list", icon: LayoutList }, { v: "calendar", icon: CalendarDays }] as const).map(({ v, icon: Icon }) => (
+                        <button key={v} onClick={() => setView(v)}
                             className="px-4 py-2.5 transition-all"
                             style={{ background: view === v ? "rgba(200,160,52,0.08)" : "transparent", color: view === v ? T.gold : T.muted }}>
                             <Icon className="w-4 h-4" />
@@ -235,7 +132,112 @@ export default function Appointments() {
                 ))}
             </div>
 
-            {view === "calendar" ? <CalendarView /> : (
+            {view === "calendar" ? (
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_380px] gap-6">
+                    <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
+                        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
+                            <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(monthCursor, "MMMM yyyy")}</div>
+                            <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                                    style={{ border: `1px solid ${T.border}`, color: T.muted }}>
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button type="button" onClick={() => { setMonthCursor(new Date()); setSelectedDate(new Date()) }}
+                                    className="px-3 py-2 rounded-lg text-[12px] transition-all"
+                                    style={{ border: `1px solid ${T.border}`, color: T.muted }}>
+                                    Today
+                                </button>
+                                <button type="button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                                    style={{ border: `1px solid ${T.border}`, color: T.muted }}>
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-7 border-b" style={{ borderColor: T.border }}>
+                            {DAYS.map(d => (
+                                <div key={d} className="py-3 text-center text-[10px] uppercase tracking-wider border-r last:border-0"
+                                    style={{ borderColor: T.border, color: T.muted }}>{d}</div>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-7">
+                            {calendarDays.map(day => {
+                                const dayAppointments = filtered.filter(a => isSameDay(parseISO(a.appointment_date), day))
+                                const inCurrentMonth = isSameMonth(day, monthCursor)
+                                const dayIsToday = isToday(day)
+                                const isSelected = isSameDay(day, selectedDate)
+                                return (
+                                    <button key={day.toISOString()} type="button" onClick={() => setSelectedDate(day)}
+                                        className="min-h-[110px] p-2 border-r border-b last:border-r-0 text-left transition-all"
+                                        style={{
+                                            borderColor: T.border,
+                                            background: isSelected ? "rgba(200,160,52,0.08)" : dayIsToday ? "rgba(232,228,221,0.02)" : undefined,
+                                            opacity: inCurrentMonth ? 1 : 0.42,
+                                        }}>
+                                        <span className={cn("text-[12px] font-medium w-7 h-7 flex items-center justify-center rounded-full mb-2")}
+                                            style={{ background: isSelected || dayIsToday ? T.gold : "transparent", color: isSelected || dayIsToday ? "#000" : T.muted }}>
+                                            {format(day, "d")}
+                                        </span>
+                                        <div className="space-y-1">
+                                            {dayAppointments.slice(0, 2).map(a => (
+                                                <div key={a.id} className="text-[10px] px-2 py-1 rounded truncate"
+                                                    style={{ background: a.call_id ? T.goldBg : T.blueBg, color: a.call_id ? T.gold : T.blue }}>
+                                                    {a.appointment_time.slice(0, 5)} {a.customer_name}
+                                                </div>
+                                            ))}
+                                            {dayAppointments.length > 2 ? <div className="text-[10px]" style={{ color: T.muted }}>+{dayAppointments.length - 2} more</div> : null}
+                                            {dayAppointments.length === 0 ? <div className="text-[10px]" style={{ color: "rgba(232,228,221,0.18)" }}>No bookings</div> : null}
+                                        </div>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                    <div className="rounded-xl border overflow-hidden h-fit" style={{ borderColor: T.border, background: T.surface }}>
+                        <div className="px-5 py-4 border-b" style={{ borderColor: T.border }}>
+                            <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(selectedDate, "EEEE, MMMM d")}</div>
+                            <div className="text-[12px] mt-1" style={{ color: T.muted }}>
+                                {selectedDayAppointments.length} appointment{selectedDayAppointments.length === 1 ? "" : "s"}
+                            </div>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            {selectedDayAppointments.length === 0 ? (
+                                <div className="rounded-xl border px-4 py-8 text-center" style={{ borderColor: T.border, color: T.muted }}>
+                                    No appointments on this day.
+                                </div>
+                            ) : selectedDayAppointments.map(appointment => {
+                                const status = STATUS[appointment.status]
+                                const source = getAppointmentSource(appointment)
+                                const SourceIcon = source.icon
+                                return (
+                                    <div key={appointment.id} className="rounded-xl border px-4 py-4" style={{ borderColor: T.border }}>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-[14px] font-medium" style={{ color: T.text }}>{appointment.customer_name}</div>
+                                                <div className="text-[12px] mt-1" style={{ color: T.muted }}>{appointment.customer_phone}</div>
+                                            </div>
+                                            <span className="text-[11px] font-medium px-2 py-1 rounded-md" style={{ color: status.color, background: status.bg }}>
+                                                {status.label}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                                            <span className="text-[11px] px-2 py-1 rounded-md" style={{ color: T.text, background: "rgba(232,228,221,0.06)" }}>
+                                                {appointment.appointment_time.slice(0, 5)}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md" style={{ color: source.color, background: source.bg }}>
+                                                <SourceIcon className="w-3 h-3" />
+                                                {source.label}
+                                            </span>
+                                        </div>
+                                        {appointment.reason ? <div className="mt-3 text-[12px]" style={{ color: T.muted }}>Reason: {appointment.reason}</div> : null}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            ) : (
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
                     <div className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
                         style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: T.surface, borderColor: T.border, color: T.muted }}>

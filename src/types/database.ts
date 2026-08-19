@@ -31,6 +31,13 @@ export interface Business {
   agent_name: string
   agent_voice: string
   system_prompt: string | null
+  sarvam_agent_id?: string | null
+  assigned_phone_number?: string | null
+  whatsapp_enabled?: boolean
+  whatsapp_notification_phone?: string | null
+  razorpay_subscription_id?: string | null
+  razorpay_customer_id?: string | null
+  subscription_status?: string | null
   is_active: boolean
   plan: 'trial' | 'starter' | 'pro' | 'enterprise'
   plan_started_at: string | null

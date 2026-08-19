@@ -3,53 +3,72 @@ interface SarvamSTTOptions {
 }
 
 const ttsCache = new Map<string, Promise<string>>();
+const backendUrl = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
+
+async function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            const base64 = dataUrl.split(",")[1] || "";
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
 
 export async function getSarvamSTT(audioBlob: Blob, options: SarvamSTTOptions = {}): Promise<string> {
-    const apiKey = import.meta.env.VITE_SARVAM_API_KEY;
-    if (!apiKey) {
-        throw new Error("Sarvam API Key is missing");
-    }
-
     const { mode = "transcribe" } = options;
 
-    const formData = new FormData();
-    formData.append('model', 'saaras:v3'); // Recommended v3 model
-    formData.append('file', audioBlob, 'audio.wav');
-    formData.append('mode', mode); // Required for saaras:v3 transcription
-    // Some endpoints might require language_code, defaulting to 'hi-IN' but model usually detects it
-    // formData.append('language_code', 'hi-IN'); 
-
-    console.log("Sarvam STT Request (v3):", {
-        model: 'saaras:v3',
-        mode,
-        blobSize: audioBlob.size,
-        blobType: audioBlob.type
-    });
-
+    // 1. Try Backend Proxy if available
     try {
-        const response = await fetch('https://api.sarvam.ai/speech-to-text', {
-            method: 'POST',
-            headers: {
-                'api-subscription-key': apiKey,
-                // Do NOT set Content-Type to multipart/form-data manually, fetch handles the boundary
-            },
-            body: formData
+        const audioBase64 = await blobToBase64(audioBlob);
+        const proxyEndpoint = backendUrl ? `${backendUrl}/api/voice/stt` : "/api/voice/stt";
+        const proxyRes = await fetch(proxyEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ audioBase64, mode }),
         });
 
-        if (!response.ok) {
-            const errJson = await response.json();
-            console.error("Sarvam STT Error Payload:", errJson);
-            // The error might be in the 'message' or 'error.message'
-            const msg = errJson.message || errJson.error?.message || JSON.stringify(errJson);
-            throw new Error(`Sarvam STT Failed (${response.status}): ${msg}`);
+        if (proxyRes.ok) {
+            const data = await proxyRes.json();
+            if (data?.transcript !== undefined) {
+                return data.transcript;
+            }
         }
-
-        const data = await response.json();
-        return data.transcript || "";
-    } catch (error) {
-        console.error("Sarvam STT Exception:", error);
-        throw error;
+    } catch (proxyErr) {
+        // Fallback to direct client API if backend proxy fails or is offline
+        console.debug("Backend STT proxy unavailable, falling back to direct:", proxyErr);
     }
+
+    // 2. Direct Sarvam API Fallback
+    const apiKey = import.meta.env.VITE_SARVAM_API_KEY;
+    if (!apiKey) {
+        throw new Error("Sarvam API is unreachable and no client key is configured.");
+    }
+
+    const formData = new FormData();
+    formData.append("model", "saaras:v3");
+    formData.append("file", audioBlob, "audio.wav");
+    formData.append("mode", mode);
+
+    const response = await fetch("https://api.sarvam.ai/speech-to-text", {
+        method: "POST",
+        headers: {
+            "api-subscription-key": apiKey,
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        const msg = errJson.message || errJson.error?.message || response.statusText;
+        throw new Error(`Sarvam STT Failed (${response.status}): ${msg}`);
+    }
+
+    const data = await response.json();
+    return data.transcript || "";
 }
 
 interface SarvamTTSOptions {
@@ -59,11 +78,6 @@ interface SarvamTTSOptions {
 }
 
 export async function getSarvamTTS(text: string, options: SarvamTTSOptions = {}): Promise<string> {
-    const apiKey = import.meta.env.VITE_SARVAM_API_KEY;
-    if (!apiKey) {
-        throw new Error("Sarvam API Key is missing");
-    }
-
     const {
         speaker = "shubh",
         pace = 1.1,
@@ -83,22 +97,46 @@ export async function getSarvamTTS(text: string, options: SarvamTTSOptions = {})
     }
 
     const request = (async () => {
-        const response = await fetch('https://api.sarvam.ai/text-to-speech', {
-            method: 'POST',
+        // 1. Try Backend Proxy if available
+        try {
+            const proxyEndpoint = backendUrl ? `${backendUrl}/api/voice/tts` : "/api/voice/tts";
+            const proxyRes = await fetch(proxyEndpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, speaker, pace, targetLanguageCode }),
+            });
+
+            if (proxyRes.ok) {
+                const data = await proxyRes.json();
+                if (data?.audioBase64) {
+                    return data.audioBase64;
+                }
+            }
+        } catch (proxyErr) {
+            console.debug("Backend TTS proxy unavailable, falling back to direct:", proxyErr);
+        }
+
+        // 2. Direct Sarvam API Fallback
+        const apiKey = import.meta.env.VITE_SARVAM_API_KEY;
+        if (!apiKey) {
+            throw new Error("Sarvam TTS is unreachable and no client key is configured.");
+        }
+
+        const response = await fetch("https://api.sarvam.ai/text-to-speech", {
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
-                'api-subscription-key': apiKey
+                "Content-Type": "application/json",
+                "api-subscription-key": apiKey,
             },
             body: JSON.stringify({
                 inputs: [text],
-                // en-IN keeps English numbers natural while still allowing Hinglish code-switching.
                 target_language_code: targetLanguageCode,
                 speaker,
                 pace,
                 speech_sample_rate: 16000,
-                enable_preprocessing: true, // enable_preprocessing=true helps with numbers/abbreviations
-                model: "bulbul:v3"
-            })
+                enable_preprocessing: true,
+                model: "bulbul:v3",
+            }),
         });
 
         if (!response.ok) {
@@ -107,7 +145,6 @@ export async function getSarvamTTS(text: string, options: SarvamTTSOptions = {})
         }
 
         const data = await response.json();
-        // Sarvam usually returns a base64 encoded string of the audio in the audios array
         if (data && data.audios && data.audios.length > 0) {
             return data.audios[0];
         }

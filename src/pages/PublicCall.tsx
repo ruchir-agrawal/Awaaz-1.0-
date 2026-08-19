@@ -38,14 +38,6 @@ export default function PublicCall() {
         fetchBiz();
     }, [slug]);
 
-    const current_time_IST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-
-    // Fallback if system_prompt is empty
-    const defaultPrompt = `You are ${business?.agent_name || 'Awaaz'}, a friendly voice assistant for ${business?.name}. 
-    Role: Handle inbound queries and assist callers.
-    Tone: Warm and professional.
-    Current Time: ${current_time_IST}.`;
-
     const [systemPrompt, setSystemPrompt] = useState("");
 
     // Fetch existing appointments and inject into prompt
@@ -53,6 +45,12 @@ export default function PublicCall() {
         if (!business) return;
 
         const initPrompt = async () => {
+            const current_time_IST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+            const defaultPrompt = `You are ${business.agent_name || 'Awaaz'}, a friendly voice assistant for ${business.name}. 
+Role: Handle inbound queries and assist callers.
+Tone: Warm and professional.
+Current Time: ${current_time_IST}.`;
+
             const sessionUid = (business.slug?.toUpperCase() || "AWZ") + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
             const nowIST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: true, hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
 
@@ -79,8 +77,8 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
                     const res = await fetch(buildBridgeGetUrl(bridgeUrl, getBusinessSheetTarget(business)));
                     const json = await res.json();
                     if (json.status === 'ok' && json.appointments && json.appointments.length > 0) {
-                        const apptLines = json.appointments.map((a: any) =>
-                            `- ${a.callTime}: ${a.patientName} (${a.mobile}) — ${a.reason} — Status: ${a.status}`
+                        const apptLines = json.appointments.map((a: { callTime?: string; patientName?: string; mobile?: string; reason?: string; status?: string }) =>
+                            `- ${a.callTime || 'N/A'}: ${a.patientName || 'Patient'} (${a.mobile || ''}) — ${a.reason || 'General'} — Status: ${a.status || 'Confirmed'}`
                         ).join('\n');
                         basePrompt += `\n\n[EXISTING APPOINTMENTS — DO NOT DOUBLE BOOK THESE SLOTS]:\n${apptLines}\n\nIMPORTANT: Before booking any new appointment, check the above list. If a requested time slot already has a confirmed appointment, inform the caller that the slot is taken and suggest the next available time.`;
                     }
@@ -122,30 +120,35 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
     const handleStartCall = async () => {
         setIsStarted(true);
         if (business) {
-            // Log the call creation immediately
-            const { data, error } = await supabase.from('calls').insert({
-                business_id: business.id,
-                call_source: 'web',
-                outcome: 'in-progress'
-            }).select('id').single();
+            try {
+                const { data } = await supabase.from('calls').insert({
+                    business_id: business.id,
+                    call_source: 'web',
+                    outcome: 'in-progress'
+                }).select('id').single();
 
-            if (error) {
-                console.error("Failed to insert call", error);
-            }
-            if (data) {
-                setCallId(data.id);
+                if (data) {
+                    setCallId(data.id);
+                }
+            } catch (err) {
+                console.warn("Could not create call record (non-fatal):", err);
             }
         }
+        await startListening();
     };
 
     const handleEndCall = async () => {
         setIsStarted(false);
         stopAgent();
         if (callId) {
-            await supabase.from('calls').update({
-                outcome: 'completed',
-                ended_at: new Date().toISOString()
-            }).eq('id', callId);
+            try {
+                await supabase.from('calls').update({
+                    outcome: 'completed',
+                    ended_at: new Date().toISOString()
+                }).eq('id', callId);
+            } catch (err) {
+                console.warn("Could not finalize call record:", err);
+            }
         }
     };
 

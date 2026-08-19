@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Business, Profile, ApiUsage } from '@/types/database'
+import { format, subDays, startOfDay, isSameDay, parseISO } from 'date-fns'
 
 export function useAdminData() {
     const { isAdmin } = useAuth()
@@ -9,15 +10,11 @@ export function useAdminData() {
     const [apiUsageToday, setApiUsageToday] = useState<ApiUsage[]>([])
     const [totalCallsToday, setTotalCallsToday] = useState(0)
     const [totalAppointmentsToday, setTotalAppointmentsToday] = useState(0)
-    const [loading, setLoading] = useState(true)
+    const [weeklyCallsData, setWeeklyCallsData] = useState<{ d: string; v: number }[]>([])
+    const [loading, setLoading] = useState(Boolean(isAdmin))
 
     const fetchData = useCallback(async () => {
-        if (!isAdmin) {
-            setLoading(false)
-            return
-        }
-
-        setLoading(true)
+        if (!isAdmin) return
         
         // fetch profiles with role owner
         const { data: ownersData, error: profError } = await supabase
@@ -35,24 +32,41 @@ export function useAdminData() {
         const { data: bizData } = await supabase.from('businesses').select('*')
         
         const todayStr = new Date().toISOString().split('T')[0]
-        const startOfDay = `${todayStr}T00:00:00Z`
+        const todayStart = `${todayStr}T00:00:00Z`
+        const sevenDaysAgo = subDays(startOfDay(new Date()), 6).toISOString()
         
         // fetch api_usage for today
         const { data: usageData } = await supabase
             .from('api_usage')
             .select('*')
-            .gte('created_at', startOfDay)
+            .gte('created_at', todayStart)
 
         // fetch aggs for system UI
         const { count: callsCount } = await supabase
             .from('calls')
             .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay)
+            .gte('created_at', todayStart)
             
         const { count: aptCount } = await supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay)
+            .gte('created_at', todayStart)
+
+        // fetch last 7 days of calls for the chart
+        const { data: last7DaysCalls } = await supabase
+            .from('calls')
+            .select('created_at')
+            .gte('created_at', sevenDaysAgo)
+
+        const days = Array.from({ length: 7 }).map((_, i) => subDays(new Date(), 6 - i))
+        const chartData = days.map(day => {
+            const count = (last7DaysCalls || []).filter(c => isSameDay(parseISO(c.created_at), day)).length
+            return {
+                d: format(day, "MMM d"),
+                v: count
+            }
+        })
+        setWeeklyCallsData(chartData)
 
         if (bizData) {
             const combined = ownersData.map(owner => ({
@@ -73,7 +87,10 @@ export function useAdminData() {
     }, [isAdmin])
 
     useEffect(() => {
-        fetchData()
+        const run = async () => {
+            await fetchData()
+        }
+        void run()
     }, [fetchData])
 
     const totalCostToday = apiUsageToday.reduce((sum, item) => sum + item.cost_inr, 0)
@@ -85,6 +102,7 @@ export function useAdminData() {
         totalCostToday, 
         totalCallsToday, 
         totalAppointmentsToday,
+        weeklyCallsData,
         refresh: fetchData 
     }
 }

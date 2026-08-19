@@ -1,6 +1,5 @@
 import { useAdminData } from "@/hooks/useAdminData"
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
-import { format, subDays } from "date-fns"
 
 const D = "'Syne', sans-serif"
 const I = "'Inter', sans-serif"
@@ -11,7 +10,7 @@ const T = {
 }
 
 export default function AdminDashboard() {
-    const { owners, totalCallsToday, totalAppointmentsToday, totalCostToday, loading } = useAdminData()
+    const { owners, totalCallsToday, totalAppointmentsToday, totalCostToday, weeklyCallsData, loading } = useAdminData()
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -26,7 +25,7 @@ export default function AdminDashboard() {
         { label: "API spend", value: `₹${totalCostToday.toFixed(2)}` },
     ]
 
-    const barData = Array.from({ length: 7 }).map((_, i) => ({ d: format(subDays(new Date(), 6 - i), "MMM d"), v: Math.floor(Math.random() * 40 + 10) }))
+    const barData = weeklyCallsData
 
     return (
         <div style={{ fontFamily: I }}>

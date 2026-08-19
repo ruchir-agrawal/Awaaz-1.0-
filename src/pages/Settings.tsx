@@ -52,7 +52,8 @@ export default function Settings() {
     const [sheetAction, setSheetAction] = useState<"idle" | "creating" | "connecting" | "disconnecting">("idle")
     const [form, setForm] = useState({
         name: "", slug: "", industry: "", city: "", phone: "", address: "",
-        notif_whatsapp: false, notif_reminder: false, notif_phone: "",
+        sarvam_agent_id: "", assigned_phone_number: "",
+        notif_whatsapp: true, notif_reminder: true, notif_phone: "",
     })
     const savedStateTimer = useRef<number | null>(null)
     const bridgeUrl = import.meta.env.VITE_GOOGLE_BRIDGE_URL
@@ -67,6 +68,10 @@ export default function Settings() {
                 city: business.city || "",
                 phone: business.phone || "",
                 address: business.address || "",
+                sarvam_agent_id: business.sarvam_agent_id || "",
+                assigned_phone_number: business.assigned_phone_number || "",
+                notif_whatsapp: business.whatsapp_enabled !== false,
+                notif_phone: business.whatsapp_notification_phone || business.phone || "",
             }))
             setSheetInput(business.google_sheet_url || business.google_sheet_id || "")
         }
@@ -88,7 +93,7 @@ export default function Settings() {
         setSaveStatus("idle")
     }
 
-    const up = (k: string, v: any) => {
+    const up = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
         setForm(f => ({ ...f, [k]: v }))
         if (saveStatus === "saved") {
             resetSaveState()
@@ -103,8 +108,21 @@ export default function Settings() {
         }
         setSaveStatus("loading")
         const payload = tab === "business"
-            ? { name: form.name, slug: form.slug, industry: form.industry, city: form.city, phone: form.phone, address: form.address }
-            : {}
+            ? {
+                name: form.name,
+                slug: form.slug,
+                industry: form.industry,
+                city: form.city,
+                phone: form.phone,
+                address: form.address,
+                sarvam_agent_id: form.sarvam_agent_id || null,
+            }
+            : tab === "notifications"
+                ? {
+                    whatsapp_enabled: form.notif_whatsapp,
+                    whatsapp_notification_phone: form.notif_phone || null,
+                }
+                : {}
         const { error } = await supabase.from("businesses").update(payload).eq("id", business.id)
         if (error) {
             setSaveStatus("idle")
@@ -302,7 +320,17 @@ export default function Settings() {
                                     style={{ borderColor: T.border, color: T.text }} />
                             </Field>
                         </div>
-                        <Field label="Phone number">
+                        {form.assigned_phone_number && (
+                            <div className="p-4 rounded-xl border flex items-center justify-between" style={{ background: "rgba(200,160,52,0.06)", borderColor: "rgba(200,160,52,0.25)" }}>
+                                <div>
+                                    <span className="text-[10px] uppercase tracking-[0.18em] font-semibold" style={{ color: T.gold }}>Dedicated AI Receptionist Number</span>
+                                    <div className="text-[16px] font-mono font-bold mt-0.5" style={{ color: T.text }}>{form.assigned_phone_number}</div>
+                                    <p className="text-[11px] mt-1 text-white/40">Forward your business calls to this number to have your AI agent answer 24/7.</p>
+                                </div>
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                            </div>
+                        )}
+                        <Field label="Phone number (Clinic Contact)">
                             <input value={form.phone} onChange={e => up("phone", e.target.value)}
                                 placeholder="+91 98765 43210" className={inputCls}
                                 style={{ borderColor: T.border, color: T.text }} />
@@ -310,6 +338,11 @@ export default function Settings() {
                         <Field label="Address">
                             <input value={form.address} onChange={e => up("address", e.target.value)}
                                 placeholder="123 Main Street, Mumbai" className={inputCls}
+                                style={{ borderColor: T.border, color: T.text }} />
+                        </Field>
+                        <Field label="Sarvam Voice Agent ID (Optional)" hint="Link a dedicated Sarvam Indus Agent ID (from indus.sarvam.ai) or leave blank to use default.">
+                            <input value={form.sarvam_agent_id} onChange={e => up("sarvam_agent_id", e.target.value)}
+                                placeholder="e.g. agnt_89324bc..." className={inputCls}
                                 style={{ borderColor: T.border, color: T.text }} />
                         </Field>
                     </div>
@@ -320,24 +353,27 @@ export default function Settings() {
                         <p className="text-[14px] mb-6" style={{ color: T.muted }}>
                             Receive WhatsApp notifications when your AI agent books appointments.
                         </p>
-                        {[
+                        {([
                             { key: "notif_whatsapp", label: "Notify on new booking", desc: "WhatsApp message every time an appointment is booked" },
                             { key: "notif_reminder", label: "1-hour reminder", desc: "Automatic reminder sent to customer before their slot" },
-                        ].map(item => (
-                            <div key={item.key} className="flex items-center justify-between px-5 py-4 rounded-xl border"
-                                style={{ background: T.surface, borderColor: T.border }}>
-                                <div>
-                                    <div className="text-[14px] font-medium mb-0.5" style={{ color: T.text }}>{item.label}</div>
-                                    <div className="text-[12px]" style={{ color: T.muted }}>{item.desc}</div>
+                        ] as const).map(item => {
+                            const isChecked = form[item.key]
+                            return (
+                                <div key={item.key} className="flex items-center justify-between px-5 py-4 rounded-xl border"
+                                    style={{ background: T.surface, borderColor: T.border }}>
+                                    <div>
+                                        <div className="text-[14px] font-medium mb-0.5" style={{ color: T.text }}>{item.label}</div>
+                                        <div className="text-[12px]" style={{ color: T.muted }}>{item.desc}</div>
+                                    </div>
+                                    <button type="button" onClick={() => up(item.key, !isChecked)}
+                                        className="w-11 h-6 rounded-full relative transition-all shrink-0"
+                                        style={{ background: isChecked ? T.goldBg : "rgba(232,228,221,0.07)", border: `1px solid ${isChecked ? "rgba(200,160,52,0.3)" : T.border}` }}>
+                                        <span className="absolute top-0.5 rounded-full w-5 h-5 transition-all"
+                                            style={{ background: isChecked ? T.gold : "rgba(232,228,221,0.2)", left: isChecked ? "calc(100% - 22px)" : "2px" }} />
+                                    </button>
                                 </div>
-                                <button type="button" onClick={() => up(item.key, !(form as any)[item.key])}
-                                    className="w-11 h-6 rounded-full relative transition-all shrink-0"
-                                    style={{ background: (form as any)[item.key] ? T.goldBg : "rgba(232,228,221,0.07)", border: `1px solid ${(form as any)[item.key] ? "rgba(200,160,52,0.3)" : T.border}` }}>
-                                    <span className="absolute top-0.5 rounded-full w-5 h-5 transition-all"
-                                        style={{ background: (form as any)[item.key] ? T.gold : "rgba(232,228,221,0.2)", left: (form as any)[item.key] ? "calc(100% - 22px)" : "2px" }} />
-                                </button>
-                            </div>
-                        ))}
+                            )
+                        })}
                         <Field label="WhatsApp number for notifications">
                             <input value={form.notif_phone} onChange={e => up("notif_phone", e.target.value)}
                                 placeholder="+91 98765 43210" className={inputCls}

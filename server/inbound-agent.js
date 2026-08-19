@@ -20,6 +20,7 @@ import {
     getCalendarSlots,
     isCalendarConfiguredForBusiness,
 } from "./calendar-service.js";
+import { sendBookingNotifications, sendWhatsAppMessage } from "./whatsapp-service.js";
 
 dotenv.config();
 dotenv.config({ path: ".env.local", override: true });
@@ -32,8 +33,19 @@ const audioDir = path.join(workspaceRoot, ".telephony-audio");
 const app = express();
 const { VoiceResponse } = twilio.twiml;
 
-app.use(express.urlencoded({ extended: false, limit: "1mb" }));
-app.use(express.json({ limit: "5mb" }));
+// Enable CORS for frontend web client
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, api-subscription-key, x-session-id");
+    if (req.method === "OPTIONS") {
+        return res.status(204).end();
+    }
+    next();
+});
+
+app.use(express.urlencoded({ extended: false, limit: "15mb" }));
+app.use(express.json({ limit: "15mb" }));
 app.use("/generated-audio", express.static(audioDir, { maxAge: "1h" }));
 
 // const port = Number(process.env.TELEPHONY_PORT || 8787);
@@ -76,6 +88,44 @@ const WEEKDAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "
 
 await fs.mkdir(audioDir, { recursive: true });
 
+// Background Audio File Garbage Collector (1-hour TTL)
+async function cleanupOldAudioFiles() {
+    try {
+        const files = await fs.readdir(audioDir);
+        const now = Date.now();
+        const maxAgeMs = 60 * 60 * 1000; // 1 hour
+        for (const file of files) {
+            if (!file.endsWith(".wav")) continue;
+            const filePath = path.join(audioDir, file);
+            const stat = await fs.stat(filePath).catch(() => null);
+            if (stat && (now - stat.mtimeMs > maxAgeMs)) {
+                await fs.unlink(filePath).catch(() => {});
+            }
+        }
+    } catch (err) {
+        console.warn("[AUDIO_CLEANUP] Cleanup error:", err.message);
+    }
+}
+setInterval(cleanupOldAudioFiles, 15 * 60 * 1000); // run every 15 minutes
+
+// Log API Telemetry & Spend in Supabase
+async function logApiUsage({ businessId, callId = null, service, tokensUsed = 0, durationSeconds = 0, costInr = 0 }) {
+    if (!supabase || !businessId) return;
+    try {
+        await supabase.from("api_usage").insert({
+            business_id: businessId,
+            call_id: callId || null,
+            service,
+            tokens_used: Math.round(tokensUsed),
+            duration_seconds: Number(durationSeconds.toFixed(2)),
+            cost_inr: Number(costInr.toFixed(4)),
+            created_at: new Date().toISOString(),
+        });
+    } catch (err) {
+        console.warn(`[USAGE] Failed to log ${service} usage:`, err.message);
+    }
+}
+
 app.get("/health", (_req, res) => {
     res.json({
         ok: true,
@@ -88,7 +138,191 @@ app.get("/health", (_req, res) => {
         calendarProvider: getCalendarProviderLabel(),
         calOAuthConfigured: isCalOAuthConfigured(),
         sarvamConfigured: Boolean(sarvamApiKey),
+        groqConfigured: Boolean(groqApiKey),
+        geminiConfigured: Boolean(geminiApiKey),
     });
+});
+
+// Deep live infrastructure health check for admin console
+app.get("/api/health/deep", async (_req, res) => {
+    const start = Date.now();
+    const results = {
+        supabase: { status: "degraded", latencyMs: 0 },
+        sarvam: { status: sarvamApiKey ? "operational" : "down", latencyMs: 0 },
+        groq: { status: groqApiKey ? "operational" : "down", latencyMs: 0 },
+        gemini: { status: geminiApiKey ? "operational" : "down", latencyMs: 0 },
+        twilio: { status: twilioAuthToken ? "operational" : "degraded", latencyMs: 0 },
+        overall: "operational",
+    };
+
+    if (supabase) {
+        const dbStart = Date.now();
+        const { error } = await supabase.from("businesses").select("id").limit(1);
+        results.supabase.latencyMs = Date.now() - dbStart;
+        results.supabase.status = error ? "down" : "operational";
+    }
+
+    const totalLatency = Date.now() - start;
+    res.json({
+        ok: true,
+        timestamp: new Date().toISOString(),
+        totalLatencyMs: totalLatency,
+        services: results,
+    });
+});
+
+// Backend Proxy: Web Voice STT
+app.post("/api/voice/stt", async (req, res) => {
+    try {
+        if (!sarvamApiKey) {
+            return res.status(500).json({ error: "SARVAM_API_KEY not configured on server" });
+        }
+        const { audioBase64, mode = "codemix" } = req.body;
+        if (!audioBase64) {
+            return res.status(400).json({ error: "audioBase64 is required" });
+        }
+
+        const buffer = Buffer.from(audioBase64, "base64");
+        const blob = new Blob([buffer], { type: "audio/wav" });
+        const formData = new FormData();
+        formData.append("file", blob, "audio.wav");
+        formData.append("model", "saaras:v3");
+        formData.append("mode", mode);
+        formData.append("language_code", "hi-IN");
+
+        const response = await fetch("https://api.sarvam.ai/speech-to-text", {
+            method: "POST",
+            headers: {
+                "api-subscription-key": sarvamApiKey,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            return res.status(response.status).json({ error: `Sarvam STT failed: ${err}` });
+        }
+
+        const data = await response.json();
+        res.json({ transcript: data?.transcript || "" });
+    } catch (error) {
+        console.error("[STT_PROXY_ERROR]", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Backend Proxy: Web Voice TTS
+app.post("/api/voice/tts", async (req, res) => {
+    try {
+        if (!sarvamApiKey) {
+            return res.status(500).json({ error: "SARVAM_API_KEY not configured on server" });
+        }
+        const { text, speaker = preferredSarvamSpeaker, pace = 1.0, targetLanguageCode = "hi-IN" } = req.body;
+        if (!text) {
+            return res.status(400).json({ error: "text is required" });
+        }
+
+        const response = await fetch("https://api.sarvam.ai/text-to-speech", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "api-subscription-key": sarvamApiKey,
+            },
+            body: JSON.stringify({
+                inputs: [text],
+                target_language_code: targetLanguageCode,
+                speaker,
+                pace: Number(pace) || 1.0,
+                speech_sample_rate: 8000,
+                enable_preprocessing: false,
+                model: "bulbul:v3",
+            }),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            return res.status(response.status).json({ error: `Sarvam TTS failed: ${err}` });
+        }
+
+        const data = await response.json();
+        res.json({ audioBase64: data?.audios?.[0] || null });
+    } catch (error) {
+        console.error("[TTS_PROXY_ERROR]", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Backend Proxy: Web Voice Chat / LLM (Groq with Gemini Fallback)
+app.post("/api/voice/chat", async (req, res) => {
+    try {
+        const { messages = [], systemPrompt = "", temperature = 0.6, maxTokens = 250 } = req.body;
+        const formattedMessages = [
+            { role: "system", content: systemPrompt },
+            ...messages,
+        ];
+
+        // 1. Try Groq
+        if (groqApiKey) {
+            try {
+                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${groqApiKey}`,
+                    },
+                    body: JSON.stringify({
+                        model: "llama-3.3-70b-versatile",
+                        messages: formattedMessages,
+                        temperature,
+                        max_tokens: maxTokens,
+                    }),
+                });
+
+                if (groqRes.ok) {
+                    const groqData = await groqRes.json();
+                    const text = groqData.choices?.[0]?.message?.content || "";
+                    return res.json({ text, provider: "groq" });
+                }
+            } catch (groqErr) {
+                console.warn("[CHAT_PROXY] Groq failed, attempting Gemini fallback:", groqErr.message);
+            }
+        }
+
+        // 2. Gemini Fallback
+        if (geminiApiKey) {
+            const geminiContents = messages.map((m) => ({
+                role: m.role === "assistant" ? "model" : "user",
+                parts: [{ text: m.content }],
+            }));
+
+            const geminiRes = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        contents: geminiContents,
+                        generationConfig: {
+                            temperature,
+                            maxOutputTokens: maxTokens,
+                        },
+                    }),
+                }
+            );
+
+            if (geminiRes.ok) {
+                const geminiData = await geminiRes.json();
+                const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                return res.json({ text, provider: "gemini" });
+            }
+        }
+
+        return res.status(500).json({ error: "No available LLM provider could fulfill the chat request." });
+    } catch (error) {
+        console.error("[CHAT_PROXY_ERROR]", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.post("/calendar/connect", async (req, res) => {
@@ -1056,7 +1290,7 @@ async function ensureCallLogged(session, reason) {
         return;
     }
 
-    const durationSeconds = Math.round((Date.now() - session.startTime) / 1000);
+    const durationSeconds = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
     const finalOutcome = session.transferRequested ? "transferred" :
         (session.captured.appointment_datetime ? "booked" : "completed");
 
@@ -1070,6 +1304,51 @@ async function ensureCallLogged(session, reason) {
         customer_phone: session.captured.phone_number || session.customerPhone || null,
         language_detected: twilioLanguage,
     });
+
+    // Telemetry: Log API usage to Supabase for tracking & billing
+    if (session.business?.id) {
+        const turnsCount = Math.max(1, session.history?.length || 1);
+        const minutes = durationSeconds / 60;
+        
+        // 1. Twilio Telephony Usage (~₹0.80/min)
+        await logApiUsage({
+            businessId: session.business.id,
+            callId: session.callId,
+            service: "twilio",
+            durationSeconds,
+            costInr: minutes * 0.80,
+        });
+
+        // 2. Sarvam STT Usage (~₹0.15/min of user speech)
+        await logApiUsage({
+            businessId: session.business.id,
+            callId: session.callId,
+            service: "sarvam_stt",
+            durationSeconds: durationSeconds * 0.5,
+            costInr: (minutes * 0.5) * 0.15,
+        });
+
+        // 3. Sarvam TTS Usage (~₹0.20 per 1000 characters)
+        const ttsChars = turnsCount * 120;
+        await logApiUsage({
+            businessId: session.business.id,
+            callId: session.callId,
+            service: "sarvam_tts",
+            tokensUsed: ttsChars,
+            durationSeconds: durationSeconds * 0.5,
+            costInr: (ttsChars / 1000) * 0.20,
+        });
+
+        // 4. Groq / Gemini LLM Usage (~₹0.05 per 1000 tokens)
+        const estimatedTokens = turnsCount * 300;
+        await logApiUsage({
+            businessId: session.business.id,
+            callId: session.callId,
+            service: "groq_llm",
+            tokensUsed: estimatedTokens,
+            costInr: (estimatedTokens / 1000) * 0.05,
+        });
+    }
 
     // 2. Log to Google Sheet via Bridge
     if (googleBridgeUrl) {
@@ -1257,7 +1536,8 @@ async function handleBookedAppointment(session) {
 
     if (session.calendarBookingUid) {
         await syncSupabaseAppointment(session, bookingDate, { uid: session.calendarBookingUid });
-        session.captured.appointment_datetime = formatIstSpokenDate(bookingDate);
+        session.captured.appointment_datetime = formatIstDate(bookingDate) + " " + formatIstTime(bookingDate);
+        session.captured.appointment_datetime_spoken = formatIstSpokenDate(bookingDate);
         return { uid: session.calendarBookingUid };
     }
 
@@ -1283,7 +1563,8 @@ async function handleBookedAppointment(session) {
 
     await syncSupabaseAppointment(session, bookingDate, calendarBooking);
     session.calendarBookingUid = calendarBooking?.uid || session.calendarBookingUid || null;
-    session.captured.appointment_datetime = formatIstSpokenDate(bookingDate);
+    session.captured.appointment_datetime = formatIstDate(bookingDate) + " " + formatIstTime(bookingDate);
+    session.captured.appointment_datetime_spoken = formatIstSpokenDate(bookingDate);
     return calendarBooking;
 }
 
@@ -1435,11 +1716,461 @@ function optionalTwilioValidation(req, res, next) {
         return res.status(403).send("Missing Twilio signature");
     }
 
-    const url = absoluteUrl(req.path);
-    const isValid = twilio.validateRequest(twilioAuthToken, signature, url, req.body);
+    const proto = req.header("x-forwarded-proto") || "https";
+    const host = req.header("x-forwarded-host") || req.header("host");
+    const fullUrl = `${proto}://${host}${req.originalUrl || req.url}`;
+    const url = appBaseUrl ? absoluteUrl(req.originalUrl || req.path) : fullUrl;
+
+    const isValid = twilio.validateRequest(twilioAuthToken, signature, url, req.body) ||
+                    twilio.validateRequest(twilioAuthToken, signature, fullUrl, req.body);
     if (!isValid) {
         return res.status(403).send("Invalid Twilio signature");
     }
 
     next();
 }
+
+// ==============================================================================
+// SARVAM VOICE AGENTS (INDUS/SAMVAAD) WEBHOOK & TOOL CALLING ENGINE
+// ==============================================================================
+
+/**
+ * 1. Sarvam Real-Time Tool Calling Webhook
+ * Triggered by Sarvam Voice Agents when caller requests an action (booking, availability, transfer).
+ */
+app.post("/api/webhooks/sarvam/tools", async (req, res) => {
+    try {
+        const { tool, params = {}, business_id, slug, session_id } = req.body || {};
+        console.log(`[Sarvam Agent Tool Call] Tool: ${tool}, Business: ${business_id || slug}`, params);
+
+        // Resolve business record
+        let business = null;
+        if (business_id) {
+            const { data } = await supabase.from("businesses").select("*").eq("id", business_id).single();
+            business = data;
+        } else if (slug) {
+            const { data } = await supabase.from("businesses").select("*").eq("slug", slug).single();
+            business = data;
+        }
+
+        if (!business) {
+            // Fallback to first active business
+            const { data } = await supabase.from("businesses").select("*").eq("is_active", true).limit(1).single();
+            business = data;
+        }
+
+        const bizId = business?.id;
+        const bizName = business?.name || "Clinic";
+        const ownerPhone = business?.whatsapp_notification_phone || business?.phone;
+
+        const normalizedTool = (tool || "").toLowerCase().replace(/[\s_-]+/g, "");
+
+        switch (normalizedTool) {
+            case "bookappointment": {
+                const patientName = params.patient_name || params.name || "Patient";
+                const rawPhone = params.phone_number || params.mobile || params.phone || "";
+                const cleanPhone = rawPhone.replace(/[^\d+]/g, "");
+                const appointmentDateStr = params.appointment_datetime || params.date || new Date().toISOString();
+                const reason = params.service_reason || params.reason || "General Consultation";
+
+                // Parse date & time
+                let appointmentDate = new Date().toISOString().split("T")[0];
+                let appointmentTime = "10:00:00";
+                try {
+                    const parsedDate = new Date(appointmentDateStr);
+                    if (!isNaN(parsedDate.getTime())) {
+                        appointmentDate = parsedDate.toISOString().split("T")[0];
+                        appointmentTime = parsedDate.toTimeString().split(" ")[0];
+                    }
+                } catch {
+                    // default to current
+                }
+
+                // 1. Insert into Supabase appointments
+                let appointmentId = null;
+                if (bizId) {
+                    const { data: aptData, error: aptError } = await supabase
+                        .from("appointments")
+                        .insert({
+                            business_id: bizId,
+                            customer_name: patientName,
+                            customer_phone: cleanPhone || "Not provided",
+                            appointment_date: appointmentDate,
+                            appointment_time: appointmentTime,
+                            reason: reason,
+                            status: "confirmed",
+                        })
+                        .select("id")
+                        .single();
+
+                    if (aptError) {
+                        console.error("[Sarvam Tool] Supabase Insert Error:", aptError);
+                    } else {
+                        appointmentId = aptData?.id;
+                    }
+                }
+
+                // 2. Append to Google Sheets via Bridge if configured
+                if (googleBridgeUrl && business) {
+                    try {
+                        const bridgePayload = {
+                            type: "book_appointment",
+                            businessName: bizName,
+                            spreadsheetId: business.google_sheet_id,
+                            sheetName: business.google_sheet_tab_name || "Records",
+                            data: {
+                                session_uid: session_id || `SARVAM-${Date.now().toString(36).toUpperCase()}`,
+                                patient_name: patientName,
+                                phone_number: cleanPhone,
+                                appointment_datetime: `${appointmentDate} ${appointmentTime}`,
+                                service_reason: reason,
+                                new_or_returning: params.new_or_returning || "New",
+                                confirmation_code: Math.floor(100000 + Math.random() * 900000).toString(),
+                            },
+                        };
+
+                        await fetch(googleBridgeUrl, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(bridgePayload),
+                        });
+                    } catch (sheetErr) {
+                        console.warn("[Sarvam Tool] Google Sheet Bridge Error:", sheetErr);
+                    }
+                }
+
+                // 3. Dispatch WhatsApp notifications to Patient & Owner
+                if (business?.whatsapp_enabled !== false) {
+                    void sendBookingNotifications({
+                        businessName: bizName,
+                        patientName,
+                        patientPhone: cleanPhone,
+                        ownerPhone,
+                        appointmentDatetime: `${appointmentDate} at ${appointmentTime.slice(0, 5)}`,
+                        serviceReason: reason,
+                    }).catch(wErr => console.warn("[WhatsApp Notification Error]", wErr));
+                }
+
+                return res.json({
+                    success: true,
+                    status: "confirmed",
+                    appointment_id: appointmentId,
+                    message: `Appointment successfully booked for ${patientName} on ${appointmentDate} at ${appointmentTime.slice(0, 5)}. A confirmation has been sent to WhatsApp.`,
+                });
+            }
+
+            case "checkavailability":
+            case "checkcalendaravailability": {
+                const targetDate = params.date || new Date().toISOString().split("T")[0];
+                let bookedSlots = [];
+
+                if (bizId) {
+                    const { data: existingApts } = await supabase
+                        .from("appointments")
+                        .select("appointment_time, customer_name, status")
+                        .eq("business_id", bizId)
+                        .eq("appointment_date", targetDate)
+                        .eq("status", "confirmed");
+
+                    bookedSlots = (existingApts || []).map(a => a.appointment_time.slice(0, 5));
+                }
+
+                return res.json({
+                    success: true,
+                    date: targetDate,
+                    booked_slots: bookedSlots,
+                    business_hours: `${business?.hours_opening || "10:00"} to ${business?.hours_closing || "20:00"}`,
+                    message: bookedSlots.length > 0
+                        ? `On ${targetDate}, the following slots are already booked: ${bookedSlots.join(", ")}. All other hours between ${business?.hours_opening || "10:00"} and ${business?.hours_closing || "20:00"} are available.`
+                        : `All slots between ${business?.hours_opening || "10:00"} and ${business?.hours_closing || "20:00"} are available on ${targetDate}.`,
+                });
+            }
+
+            case "rescheduleappointment": {
+                const patientName = params.patient_name || params.name || "Patient";
+                const rawPhone = params.phone_number || params.mobile || params.phone || "";
+                const cleanPhone = rawPhone.replace(/[^\d+]/g, "");
+                const newDateStr = params.new_appointment_datetime || params.appointment_datetime || params.date;
+
+                let newDate = new Date().toISOString().split("T")[0];
+                let newTime = "10:00:00";
+                try {
+                    const parsed = new Date(newDateStr);
+                    if (!isNaN(parsed.getTime())) {
+                        newDate = parsed.toISOString().split("T")[0];
+                        newTime = parsed.toTimeString().split(" ")[0];
+                    }
+                } catch {
+                    // default
+                }
+
+                if (bizId && cleanPhone) {
+                    await supabase
+                        .from("appointments")
+                        .update({ appointment_date: newDate, appointment_time: newTime, status: "confirmed" })
+                        .eq("business_id", bizId)
+                        .eq("customer_phone", cleanPhone);
+                }
+
+                return res.json({
+                    success: true,
+                    status: "rescheduled",
+                    message: `Appointment for ${patientName} has been rescheduled to ${newDate} at ${newTime.slice(0, 5)}.`,
+                });
+            }
+
+            case "cancelappointment": {
+                const patientName = params.patient_name || params.name || "Patient";
+                const rawPhone = params.phone_number || params.mobile || params.phone || "";
+                const cleanPhone = rawPhone.replace(/[^\d+]/g, "");
+
+                if (bizId && cleanPhone) {
+                    await supabase
+                        .from("appointments")
+                        .update({ status: "cancelled" })
+                        .eq("business_id", bizId)
+                        .eq("customer_phone", cleanPhone);
+                }
+
+                return res.json({
+                    success: true,
+                    status: "cancelled",
+                    message: `Appointment for ${patientName} has been cancelled successfully.`,
+                });
+            }
+
+            case "sendreminder": {
+                const patientName = params.patient_name || params.name || "Patient";
+                const rawPhone = params.phone_number || params.mobile || params.phone || "";
+                const cleanPhone = rawPhone.replace(/[^\d+]/g, "");
+
+                if (cleanPhone) {
+                    void sendWhatsAppMessage(
+                        cleanPhone,
+                        `🔔 *Appointment Reminder from ${bizName}*\n\nNamaste ${patientName} ji! This is a reminder for your upcoming appointment. Please arrive 10 minutes prior.`
+                    );
+                }
+
+                return res.json({
+                    success: true,
+                    message: `Reminder sent to ${patientName} via WhatsApp.`,
+                });
+            }
+
+            case "transfercall": {
+                const transferNumber = business?.phone || transferFallbackNumber;
+                return res.json({
+                    success: true,
+                    transfer_number: transferNumber,
+                    message: `Transferring the call to ${bizName} staff at ${transferNumber}.`,
+                });
+            }
+
+            default: {
+                return res.json({
+                    success: false,
+                    error: `Unknown tool '${tool}'`,
+                });
+            }
+        }
+    } catch (err) {
+        console.error("[Sarvam Tool Webhook Error]", err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * 2. Sarvam Call Completed Webhook (Post-Call Logging & Telemetry)
+ * Triggered by Sarvam Voice Agents when a call finishes.
+ */
+app.post("/api/webhooks/sarvam/call-completed", async (req, res) => {
+    try {
+        const {
+            call_id,
+            business_id,
+            slug,
+            duration_seconds = 0,
+            transcript = "",
+            recording_url = null,
+            outcome = "completed",
+            customer_phone = null,
+            cost_inr = 0,
+        } = req.body || {};
+
+        console.log(`[Sarvam Call Completed] Call ID: ${call_id}, Duration: ${duration_seconds}s`);
+
+        let bizId = business_id;
+        if (!bizId && slug) {
+            const { data } = await supabase.from("businesses").select("id").eq("slug", slug).single();
+            bizId = data?.id;
+        }
+
+        if (bizId) {
+            // 1. Insert Call Log
+            const { data: callRow } = await supabase
+                .from("calls")
+                .insert({
+                    business_id: bizId,
+                    customer_phone: customer_phone || "Web User",
+                    duration_seconds: Math.round(duration_seconds),
+                    outcome: outcome,
+                    transcript: transcript,
+                    recording_url: recording_url,
+                    call_source: customer_phone ? "phone" : "web",
+                    ended_at: new Date().toISOString(),
+                })
+                .select("id")
+                .single();
+
+            // 2. Log API Usage in INR
+            if (cost_inr > 0 || duration_seconds > 0) {
+                const computedCost = cost_inr || Number((duration_seconds * 0.05).toFixed(2));
+                await logApiUsage(bizId, callRow?.id || null, "sarvam_stt", 0, duration_seconds, computedCost);
+            }
+        }
+
+        return res.json({ success: true });
+    } catch (err) {
+        console.error("[Sarvam Call Completed Error]", err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * 3. Sarvam WebRTC Session Token Generator
+ * Creates an active LiveKit / WebRTC session via Sarvam API for client-side web calling.
+ */
+app.post("/api/voice/sarvam/session", async (req, res) => {
+    try {
+        const { slug, business_id } = req.body || {};
+
+        let business = null;
+        if (business_id) {
+            const { data } = await supabase.from("businesses").select("*").eq("id", business_id).single();
+            business = data;
+        } else if (slug) {
+            const { data } = await supabase.from("businesses").select("*").eq("slug", slug).single();
+            business = data;
+        }
+
+        if (!sarvamApiKey) {
+            return res.status(500).json({ error: "Sarvam API Key not configured on server" });
+        }
+
+        const agentId = business?.sarvam_agent_id || process.env.SARVAM_DEFAULT_AGENT_ID || "default-agent";
+
+        // Request session from Sarvam Voice Agents API
+        const sarvamRes = await fetch("https://api.sarvam.ai/v1/voice-agents/sessions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "api-subscription-key": sarvamApiKey,
+            },
+            body: JSON.stringify({
+                agent_id: agentId,
+                metadata: {
+                    business_id: business?.id,
+                    business_name: business?.name,
+                    slug: business?.slug,
+                },
+            }),
+        });
+
+        if (sarvamRes.ok) {
+            const sessionData = await sarvamRes.json();
+            return res.json({
+                success: true,
+                session_id: sessionData.session_id,
+                token: sessionData.token,
+                url: sessionData.url || sessionData.webrtc_url,
+            });
+        } else {
+            // Fallback response for development / unlinked agents
+            return res.json({
+                success: true,
+                agent_id: agentId,
+                business_name: business?.name || "Awaaz Receptionist",
+                system_prompt: business?.system_prompt,
+                fallback_mode: true,
+            });
+        }
+    } catch (err) {
+        console.error("[Sarvam Session Error]", err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * 4. Razorpay Webhook (Automated Plan Activation & Phone Number Provisioning)
+ */
+app.post("/api/webhooks/razorpay", async (req, res) => {
+    try {
+        const event = req.body?.event;
+        const payload = req.body?.payload;
+
+        console.log(`[Razorpay Webhook] Received event: ${event}`);
+
+        if (event === "subscription.activated" || event === "payment.captured") {
+            const customerEmail = payload?.payment?.entity?.email || payload?.subscription?.entity?.customer_email;
+            const subscriptionId = payload?.subscription?.entity?.id || payload?.payment?.entity?.id;
+
+            if (customerEmail) {
+                // Find owner profile by email
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("id")
+                    .eq("email", customerEmail)
+                    .single();
+
+                if (profile) {
+                    // Update business subscription status
+                    const { data: biz } = await supabase
+                        .from("businesses")
+                        .select("id, assigned_phone_number")
+                        .eq("owner_id", profile.id)
+                        .single();
+
+                    if (biz) {
+                        const updates = {
+                            plan: "pro",
+                            subscription_status: "active",
+                            razorpay_subscription_id: subscriptionId,
+                            is_active: true,
+                        };
+
+                        // Auto-assign phone number if not assigned yet
+                        if (!biz.assigned_phone_number && process.env.TWILIO_AUTO_PROVISION === "true") {
+                            // Example: Auto-provision from Twilio
+                            try {
+                                const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+                                const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+                                if (twilioSid && twilioAuth) {
+                                    const client = twilio(twilioSid, twilioAuth);
+                                    const available = await client.availablePhoneNumbers("IN").local.list({ limit: 1 });
+                                    if (available && available.length > 0) {
+                                        const purchased = await client.incomingPhoneNumbers.create({
+                                            phoneNumber: available[0].phoneNumber,
+                                            voiceUrl: `${appBaseUrl}/api/telephony/inbound?business_id=${biz.id}`,
+                                        });
+                                        updates.assigned_phone_number = purchased.phoneNumber;
+                                        console.log(`[Automated Provisioning] Assigned ${purchased.phoneNumber} to business ${biz.id}`);
+                                    }
+                                }
+                            } catch (provErr) {
+                                console.warn("[Number Provisioning Warning]", provErr);
+                            }
+                        }
+
+                        await supabase.from("businesses").update(updates).eq("id", biz.id);
+                    }
+                }
+            }
+        }
+
+        return res.json({ status: "ok" });
+    } catch (err) {
+        console.error("[Razorpay Webhook Error]", err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+

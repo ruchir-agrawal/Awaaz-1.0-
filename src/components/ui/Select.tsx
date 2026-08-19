@@ -19,8 +19,7 @@ Select.displayName = "Select"
 
 export { Select }
 
-// For compatibility with the requested imports:
-export const SelectTrigger = ({ children, className }: any) => <div className={className}>{children}</div>
-export const SelectValue = ({ placeholder }: any) => <span>{placeholder}</span>
-export const SelectContent = ({ children }: any) => <>{children}</>
-export const SelectItem = ({ children, value }: any) => <option value={value}>{children}</option>
+export const SelectTrigger = ({ children, className }: { children?: React.ReactNode; className?: string }) => <div className={className}>{children}</div>
+export const SelectValue = ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
+export const SelectContent = ({ children }: { children?: React.ReactNode }) => <>{children}</>
+export const SelectItem = ({ children, value }: { children?: React.ReactNode; value: string | number }) => <option value={value}>{children}</option>
