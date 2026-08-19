@@ -305,28 +305,29 @@ export function HeroVoiceExperience() {
     return (
         <div
             ref={containerRef}
-            className="relative flex flex-row items-center gap-8 w-full max-w-[58rem]"
+            className="relative flex flex-col md:flex-row items-center justify-center gap-6 md:gap-8 w-full max-w-full lg:max-w-[58rem]"
         >
-            {/* ── Connector SVG ─────────────────────────────────────────── */}
-            <VoiceConnector
-                orbRef={orbRef}
-                chipRefs={chipRefs}
-                selectedVoiceId={selectedVoiceId}
-                color={connectorColor}
-            />
+            {/* ── Connector SVG (Desktop/Tablet row layout) ─────────────── */}
+            <div className="hidden md:block">
+                <VoiceConnector
+                    orbRef={orbRef}
+                    chipRefs={chipRefs}
+                    selectedVoiceId={selectedVoiceId}
+                    color={connectorColor}
+                />
+            </div>
 
             {/* ── Orb stage ─────────────────────────────────────────────── */}
             <div
-                className="relative flex-shrink-0 flex items-center justify-center"
-                style={{ width: "30rem", height: "30rem" }}
+                className="relative flex-shrink-0 flex items-center justify-center w-[260px] h-[260px] sm:w-[340px] sm:h-[340px] md:w-[420px] md:h-[420px] lg:w-[480px] lg:h-[480px]"
             >
                 {rings.map((r, i) => (
                     <span
                         key={i}
-                        className="absolute rounded-full"
+                        className="absolute rounded-full pointer-events-none"
                         style={{
-                            width: `${r.size}rem`,
-                            height: `${r.size}rem`,
+                            width: `${(r.size / 30) * 100}%`,
+                            height: `${(r.size / 30) * 100}%`,
                             border: `1px solid ${ringColor}`,
                             opacity: r.opacity,
                             animation: isActive
@@ -344,7 +345,7 @@ export function HeroVoiceExperience() {
                     disabled={orbState !== "idle"}
                     aria-label="Start voice experience"
                     data-state={orbState}
-                    className="agent-orb-shell relative z-10 flex h-44 w-44 items-center justify-center rounded-full transition-all duration-700 cursor-pointer disabled:cursor-default"
+                    className="agent-orb-shell relative z-10 flex h-32 w-32 sm:h-36 sm:w-36 md:h-44 md:w-44 items-center justify-center rounded-full transition-all duration-700 cursor-pointer disabled:cursor-default"
                     style={{
                         background: orbGrad,
                         boxShadow: orbShadow,
@@ -417,12 +418,11 @@ export function HeroVoiceExperience() {
 
             {/* ── Voice panel ───────────────────────────────────────────── */}
             <div
-                className="relative z-10 flex flex-col"
-                style={{ minWidth: "13rem" }}
+                className="relative z-10 flex flex-col w-full max-w-[280px] sm:max-w-xs md:w-auto md:min-w-[13rem]"
             >
                 {/* Section label */}
                 <div
-                    className="mb-4 text-[10px] font-black uppercase tracking-[0.4em] select-none"
+                    className="mb-3 sm:mb-4 text-[10px] font-black uppercase tracking-[0.4em] select-none text-center md:text-left"
                     style={{ color: "rgba(255,255,255,0.18)" }}
                 >
                     Choose Voice
@@ -451,7 +451,7 @@ export function HeroVoiceExperience() {
                                 onClick={() => setSelectedVoiceId(voice.id)}
                                 onMouseEnter={() => setHoveredVoiceId(voice.id)}
                                 onMouseLeave={() => setHoveredVoiceId(null)}
-                                className="group relative flex items-center gap-4 rounded-[1.2rem] px-5 py-4 text-left transition-all duration-300"
+                                className="group relative flex items-center gap-3 sm:gap-4 rounded-[1.2rem] px-4 sm:px-5 py-3 sm:py-4 text-left transition-all duration-300"
                                 style={{
                                     background: active
                                         ? "rgba(255,255,255,0.09)"
@@ -470,7 +470,7 @@ export function HeroVoiceExperience() {
                                     <img
                                         src={voice.image}
                                         alt={voice.name}
-                                        className="h-12 w-12 rounded-full object-cover"
+                                        className="h-10 w-10 sm:h-12 sm:w-12 rounded-full object-cover"
                                         style={{
                                             border: active
                                                 ? "2px solid rgba(255,255,255,0.28)"
@@ -496,7 +496,7 @@ export function HeroVoiceExperience() {
                                 {/* Text */}
                                 <div className="flex flex-col gap-0.5 min-w-0">
                                     <span
-                                        className="text-[15px] font-semibold leading-tight transition-colors duration-300"
+                                        className="text-[14px] sm:text-[15px] font-semibold leading-tight transition-colors duration-300"
                                         style={{
                                             color: active
                                                 ? "rgba(255,255,255,0.95)"
@@ -507,9 +507,9 @@ export function HeroVoiceExperience() {
                                     </span>
                                 </div>
 
-                                {/* Premium attribute popup */}
+                                {/* Premium attribute popup (Desktop/Wide screens only) */}
                                 <div
-                                    className="pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 rounded-[1.2rem] px-5 py-3.5 text-[15px] font-semibold tracking-tight text-white/90 shadow-2xl transition-all duration-500 ease-out"
+                                    className="pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 rounded-[1.2rem] px-5 py-3.5 text-[15px] font-semibold tracking-tight text-white/90 shadow-2xl transition-all duration-500 ease-out hidden xl:block"
                                     style={{
                                         width: "14rem",
                                         background: "rgba(255,255,255,0.04)",

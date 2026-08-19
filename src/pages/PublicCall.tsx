@@ -174,23 +174,23 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
 
     if (!isStarted) {
         return (
-            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans">
+            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent opacity-50" />
                 <Card className="w-full max-w-md border-white/10 bg-white/5 backdrop-blur-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
-                    <CardContent className="pt-12 pb-12 flex flex-col items-center text-center space-y-8">
-                        <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center animate-bounce">
-                            <PhoneIncoming className="h-10 w-10 text-primary" />
+                    <CardContent className="pt-8 sm:pt-12 pb-8 sm:pb-12 px-5 sm:px-6 flex flex-col items-center text-center space-y-6 sm:space-y-8">
+                        <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-primary/20 flex items-center justify-center animate-bounce">
+                            <PhoneIncoming className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
                         </div>
-                        <div className="space-y-2">
-                            <h1 className="text-3xl font-bold tracking-tight text-white capitalize">{business.name}</h1>
-                            <p className="text-muted-foreground">{business.agent_name} - AI Voice Receptionist</p>
+                        <div className="space-y-1.5 sm:space-y-2">
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white capitalize">{business.name}</h1>
+                            <p className="text-sm sm:text-base text-muted-foreground">{business.agent_name} - AI Voice Receptionist</p>
                         </div>
-                        <Button size="lg" className="w-full h-16 text-lg font-semibold rounded-2xl group shadow-2xl transition-all hover:scale-[1.02]" onClick={handleStartCall}>
-                            <Mic className="mr-3 h-6 w-6 group-hover:scale-110 transition-transform" />
+                        <Button size="lg" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold rounded-2xl group shadow-2xl transition-all hover:scale-[1.02]" onClick={handleStartCall}>
+                            <Mic className="mr-2.5 sm:mr-3 h-5 w-5 sm:h-6 sm:w-6 group-hover:scale-110 transition-transform" />
                             Start Conversation
                         </Button>
-                        <p className="text-xs text-white/30">Standard data rates may apply. Ensure microphone access.</p>
+                        <p className="text-[11px] sm:text-xs text-white/30">Standard data rates may apply. Ensure microphone access.</p>
                     </CardContent>
                 </Card>
             </div>
@@ -198,64 +198,64 @@ IMPORTANT: Always trigger log_call_data BEFORE saying your final goodbye.`;
     }
 
     return (
-        <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans overflow-hidden">
+        <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 sm:p-6 font-sans overflow-hidden">
             <div className={`absolute inset-0 transition-colors duration-1000 ${agentState === 'listening' ? 'bg-green-500/5' :
                 agentState === 'thinking' ? 'bg-blue-500/5' :
                     'bg-primary/5'
                 }`} />
 
-            <div className="w-full max-w-md flex flex-col items-center gap-12 relative">
+            <div className="w-full max-w-md flex flex-col items-center gap-8 sm:gap-12 relative">
                 {/* Visualizer Section */}
-                <div className="relative flex items-center justify-center h-80 w-80">
+                <div className="relative flex items-center justify-center h-64 w-64 sm:h-80 sm:w-80">
                     {/* Ring Animations */}
                     {agentState !== "idle" && (
                         <>
                             <div className="absolute inset-0 rounded-full border border-primary/20 animate-ping opacity-25" />
-                            <div className="absolute inset-8 rounded-full border border-primary/20 animate-[ping_3s_linear_infinite] opacity-20" />
+                            <div className="absolute inset-6 sm:inset-8 rounded-full border border-primary/20 animate-[ping_3s_linear_infinite] opacity-20" />
                         </>
                     )}
 
-                    <div className={`h-48 w-48 rounded-full transition-all duration-700 ${getOrbColor()} flex items-center justify-center z-10 overlow-hidden`}>
-                        {agentState === "thinking" && <BrainCircuit className="h-16 w-16 text-white animate-pulse" />}
-                        {agentState === "listening" && <Mic className="h-16 w-16 text-white animate-pulse" />}
-                        {agentState === "speaking" && <Activity className="h-16 w-16 text-white" />}
-                        {agentState === "error" && <AlertCircle className="h-16 w-16 text-white" />}
+                    <div className={`h-36 w-36 sm:h-48 sm:w-48 rounded-full transition-all duration-700 ${getOrbColor()} flex items-center justify-center z-10 overflow-hidden`}>
+                        {agentState === "thinking" && <BrainCircuit className="h-12 w-12 sm:h-16 sm:w-16 text-white animate-pulse" />}
+                        {agentState === "listening" && <Mic className="h-12 w-12 sm:h-16 sm:w-16 text-white animate-pulse" />}
+                        {agentState === "speaking" && <Activity className="h-12 w-12 sm:h-16 sm:w-16 text-white" />}
+                        {agentState === "error" && <AlertCircle className="h-12 w-12 sm:h-16 sm:w-16 text-white" />}
                         {agentState === "idle" && <div className="h-4 w-4 rounded-full bg-white/20 animate-pulse" />}
                     </div>
                 </div>
 
                 <div className="text-center space-y-4 z-10 w-full px-4">
                     <div className="space-y-1">
-                        <h2 className="text-2xl font-semibold text-white">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-white">
                             {agentState === "listening" ? "Listening..." :
                                 agentState === "thinking" ? "Thinking..." :
                                     agentState === "speaking" ? `${business.agent_name} Speaking...` :
                                         "Connected"}
                         </h2>
-                        <p className="text-muted-foreground text-sm uppercase tracking-widest font-medium opacity-60">
+                        <p className="text-muted-foreground text-xs sm:text-sm uppercase tracking-widest font-medium opacity-60">
                             {business.name}
                         </p>
                     </div>
 
-                    <div className="flex items-center justify-center gap-6 pt-8">
+                    <div className="flex items-center justify-center gap-6 pt-4 sm:pt-8">
                         {agentState === "idle" || agentState === "error" ? (
-                            <Button size="lg" className="rounded-full h-20 w-20 shadow-2xl hover:scale-105 active:scale-95 transition-transform bg-primary" onClick={startListening}>
-                                <Mic className="h-8 w-8 text-white" />
+                            <Button size="lg" className="rounded-full h-16 w-16 sm:h-20 sm:w-20 shadow-2xl hover:scale-105 active:scale-95 transition-transform bg-primary" onClick={startListening}>
+                                <Mic className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
                             </Button>
                         ) : (
-                            <Button size="lg" variant="destructive" className="rounded-full h-20 w-20 shadow-2xl hover:scale-105 active:scale-95 transition-transform" onClick={stopAgent}>
-                                <Square className="h-8 w-8 fill-current" />
+                            <Button size="lg" variant="destructive" className="rounded-full h-16 w-16 sm:h-20 sm:w-20 shadow-2xl hover:scale-105 active:scale-95 transition-transform" onClick={stopAgent}>
+                                <Square className="h-7 w-7 sm:h-8 sm:w-8 fill-current" />
                             </Button>
                         )}
                     </div>
 
-                    <Button variant="ghost" className="text-white/40 hover:text-white/60 text-sm mt-4" onClick={handleEndCall}>
+                    <Button variant="ghost" className="text-white/40 hover:text-white/60 text-xs sm:text-sm mt-2 sm:mt-4" onClick={handleEndCall}>
                         End Call
                     </Button>
                 </div>
 
                 {errorMsg && (
-                    <div className="absolute bottom-[-60px] max-w-xs p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-xs text-center animate-in fade-in slide-in-from-bottom-2">
+                    <div className="absolute bottom-[-50px] max-w-xs p-2.5 sm:p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-xs text-center animate-in fade-in slide-in-from-bottom-2">
                         {errorMsg}
                     </div>
                 )}

@@ -37,14 +37,14 @@ export default function AdminDashboard() {
             </div>
 
             {/* Metric strip */}
-            <div className="flex divide-x rounded-xl border mb-8 overflow-hidden"
+            <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x rounded-xl border mb-6 sm:mb-8 overflow-hidden"
                 style={{ borderColor: T.border, background: T.surface }}>
                 {metrics.map((m, i) => (
-                    <div key={i} className="flex-1 px-6 py-6">
-                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,3rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                    <div key={i} className="px-4 sm:px-6 py-4 sm:py-6 min-w-0">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.5rem,3vw,3rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
                             {m.value}
                         </div>
-                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
+                        <div className="mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{m.label}</div>
                     </div>
                 ))}
             </div>
@@ -52,11 +52,11 @@ export default function AdminDashboard() {
             <div className="grid lg:grid-cols-[1fr_320px] gap-6">
                 {/* Bar chart */}
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                    <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
+                    <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Platform calls</div>
-                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Last 7 days across all tenants</div>
+                        <div className="text-[11px] sm:text-[12px] mt-0.5" style={{ color: T.muted }}>Last 7 days across all tenants</div>
                     </div>
-                    <div className="px-2 pt-3 pb-3 h-[200px]">
+                    <div className="px-2 pt-3 pb-3 h-[180px] sm:h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={barData} margin={{ top: 4, right: 12, left: -24, bottom: 0 }} barCategoryGap="40%">
                                 <XAxis dataKey="d" axisLine={false} tickLine={false}

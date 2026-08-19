@@ -131,15 +131,15 @@ export default function SignUp() {
 
     if (success) {
         return (
-            <div className="flex h-screen w-screen items-center justify-center bg-[#080808]"
+            <div className="flex min-h-screen w-full items-center justify-center bg-[#080808] p-4"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                <div className="relative w-full max-w-md px-8 text-center">
-                    <MandalaDecor className="w-24 h-24 text-amber-400/60 mx-auto mb-8" />
-                    <h2 className="text-2xl text-white mb-3"
+                <div className="relative w-full max-w-md px-4 sm:px-8 py-10 text-center">
+                    <MandalaDecor className="w-20 sm:w-24 h-20 sm:h-24 text-amber-400/60 mx-auto mb-6 sm:mb-8" />
+                    <h2 className="text-xl sm:text-2xl text-white mb-3"
                         style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>
                         Check your inbox.
                     </h2>
-                    <p className="text-[14px] text-white/40 leading-relaxed mb-8">
+                    <p className="text-[13px] sm:text-[14px] text-white/40 leading-relaxed mb-8">
                         We sent a confirmation link to{" "}
                         <span className="text-white/70">{email}</span>.
                         Click it to activate your account and start your AI agent.
@@ -154,10 +154,10 @@ export default function SignUp() {
     }
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-[#080808]"
+        <div className="flex min-h-screen w-full overflow-y-auto bg-[#080808]"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
 
-            <div className="hidden lg:block relative w-[55%] h-full overflow-hidden">
+            <div className="hidden lg:block relative w-[55%] min-h-full overflow-hidden">
                 <img
                     src="/india-arch.png"
                     alt="Indian architecture"
@@ -189,25 +189,25 @@ export default function SignUp() {
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center px-8 relative overflow-y-auto">
-                <MandalaDecor className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] text-white/[0.03] pointer-events-none select-none" />
+            <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-8 py-10 sm:py-12 relative min-h-screen">
+                <MandalaDecor className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[400px] h-[300px] sm:h-[400px] text-white/[0.03] pointer-events-none select-none" />
 
-                <div className="relative z-10 w-full max-w-[380px] py-12">
+                <div className="relative z-10 w-full max-w-[380px] py-4 sm:py-8">
                     <Link to="/"
-                        className="inline-flex items-center gap-1.5 text-[12px] text-white/25 hover:text-white/50 transition-colors mb-8 group">
+                        className="inline-flex items-center gap-1.5 text-[12px] text-white/25 hover:text-white/50 transition-colors mb-6 sm:mb-8 group">
                         <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         Back to Home
                     </Link>
 
-                    <div className="mb-10">
-                        <h2 className="text-[2.8rem] text-white leading-none tracking-tight"
+                    <div className="mb-6 sm:mb-10">
+                        <h2 className="text-[2.4rem] sm:text-[2.8rem] text-white leading-none tracking-tight"
                             style={{ fontFamily: "'Instrument Serif', serif" }}>
                             Awaaz
                         </h2>
                     </div>
 
-                    <div className="mb-10">
-                        <h1 className="text-[2rem] leading-tight text-white mb-2"
+                    <div className="mb-6 sm:mb-10">
+                        <h1 className="text-[1.8rem] sm:text-[2rem] leading-tight text-white mb-2"
                             style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>
                             Create your account.
                         </h1>

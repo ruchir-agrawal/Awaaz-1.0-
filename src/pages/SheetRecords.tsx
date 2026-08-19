@@ -310,13 +310,13 @@ export default function SheetRecords() {
 
     return (
         <div style={{ fontFamily: I }}>
-            <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+            <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
-                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Owner portal</p>
+                    <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Synced data</p>
                     <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
                         Sheet Records
                     </h1>
-                    <p className="text-[14px] mt-1" style={{ color: T.muted }}>
+                    <p className="text-[13px] sm:text-[14px] mt-1 max-w-xl" style={{ color: T.muted }}>
                         Live view of your Google Sheet — all call logs synced here. Downloads include text-only sheet data.
                     </p>
                     {business?.google_sheet_url && (
@@ -333,21 +333,21 @@ export default function SheetRecords() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-3 mt-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 shrink-0">
                     {lastRefreshed && (
-                        <div className="flex items-center gap-1.5 text-[11px]" style={{ color: T.muted }}>
+                        <div className="flex items-center gap-1.5 text-[11px] w-full sm:w-auto" style={{ color: T.muted }}>
                             <Clock className="w-3 h-3" />
                             Refreshes in {countdown}s
                         </div>
                     )}
                     <button onClick={downloadTextExport} disabled={rows.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium transition-all hover:opacity-80 disabled:opacity-40"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-[12px] font-medium transition-all hover:opacity-80 disabled:opacity-40"
                         style={{ background: T.surface, color: T.text, border: `1px solid ${T.border}`, fontFamily: I }}>
                         <Download className="w-3.5 h-3.5" />
                         Download text export
                     </button>
                     <button onClick={() => fetchData(true)} disabled={refreshing}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium transition-all hover:opacity-80 disabled:opacity-40"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-[12px] font-medium transition-all hover:opacity-80 disabled:opacity-40"
                         style={{ background: T.goldBg, color: T.gold, border: "1px solid rgba(200,160,52,0.2)", fontFamily: I }}>
                         <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
                         {refreshing ? "Refreshing..." : "Refresh"}
@@ -368,19 +368,19 @@ export default function SheetRecords() {
             )}
 
             {rows.length > 0 && (
-                <div className="flex gap-4 mb-6 flex-wrap">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
                     {[
                         { label: "Total Records", value: rows.length },
                         { label: "Confirmed Appts", value: rows.filter(r => r.status?.toLowerCase().includes("confirm")).length },
                         { label: "Inquiries", value: rows.filter(r => r.status?.toLowerCase().includes("inquiry")).length },
                         { label: "Returning Patients", value: rows.filter(r => r.newOrReturning?.toLowerCase().includes("return")).length },
                     ].map(s => (
-                        <div key={s.label} className="px-4 py-3 rounded-xl border flex-1 min-w-[110px]"
+                        <div key={s.label} className="px-4 py-3 rounded-xl border min-w-0"
                             style={{ background: T.surface, borderColor: T.border }}>
-                            <div style={{ fontFamily: D, fontWeight: 700, fontSize: "1.5rem", color: T.text, letterSpacing: "-0.03em" }}>
+                            <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.3rem, 2.5vw, 1.5rem)", color: T.text, letterSpacing: "-0.03em" }}>
                                 {s.value}
                             </div>
-                            <div className="text-[10px] uppercase tracking-[0.15em] mt-1" style={{ color: T.muted }}>
+                            <div className="text-[10px] uppercase tracking-[0.15em] mt-1 truncate" style={{ color: T.muted }}>
                                 {s.label}
                             </div>
                         </div>
@@ -389,36 +389,40 @@ export default function SheetRecords() {
             )}
 
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
-                <div className="grid px-5 py-3 border-b text-[10px] uppercase tracking-[0.18em]"
-                    style={{
-                        gridTemplateColumns: "160px 1fr 120px 130px 110px 100px 32px",
-                        background: T.surface,
-                        borderColor: T.border,
-                        color: T.muted,
-                    }}>
-                    <span>Date & Time</span>
-                    <span>Patient</span>
-                    <span>Service</span>
-                    <span>Appointment</span>
-                    <span>Status</span>
-                    <span>Type</span>
-                    <span />
-                </div>
+                <div className="overflow-x-auto w-full">
+                    <div className="min-w-[760px]">
+                        <div className="grid px-5 py-3 border-b text-[10px] uppercase tracking-[0.18em]"
+                            style={{
+                                gridTemplateColumns: "160px 1fr 120px 130px 110px 100px 32px",
+                                background: T.surface,
+                                borderColor: T.border,
+                                color: T.muted,
+                            }}>
+                            <span>Date & Time</span>
+                            <span>Patient</span>
+                            <span>Service</span>
+                            <span>Appointment</span>
+                            <span>Status</span>
+                            <span>Type</span>
+                            <span />
+                        </div>
 
-                {rows.length === 0 ? (
-                    <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
-                        <p className="text-[14px]" style={{ color: T.muted }}>
-                            {error ? "Could not load data." : "No records found in the sheet yet."}
-                        </p>
-                        <p className="text-[12px] mt-1" style={{ color: T.muted }}>
-                            Records appear here after calls are completed.
-                        </p>
+                        {rows.length === 0 ? (
+                            <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
+                                <p className="text-[14px]" style={{ color: T.muted }}>
+                                    {error ? "Could not load data." : "No records found in the sheet yet."}
+                                </p>
+                                <p className="text-[12px] mt-1" style={{ color: T.muted }}>
+                                    Records appear here after calls are completed.
+                                </p>
+                            </div>
+                        ) : (
+                            rows.map((row, i) => (
+                                <TranscriptRow key={`${row.sessionUid}-${i}`} row={row} />
+                            ))
+                        )}
                     </div>
-                ) : (
-                    rows.map((row, i) => (
-                        <TranscriptRow key={`${row.sessionUid}-${i}`} row={row} />
-                    ))
-                )}
+                </div>
             </div>
 
             <p className="text-[11px] text-center mt-4" style={{ color: T.muted }}>

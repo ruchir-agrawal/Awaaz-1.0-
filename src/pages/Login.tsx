@@ -58,11 +58,11 @@ export default function Login() {
     }
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-[#080808]"
+        <div className="flex min-h-screen w-full overflow-y-auto bg-[#080808]"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
 
             {/* ── LEFT PANEL — India Visual ── */}
-            <div className="hidden lg:block relative w-[55%] h-full overflow-hidden">
+            <div className="hidden lg:block relative w-[55%] min-h-full overflow-hidden">
                 <img
                     src="/india-arch.png"
                     alt="Indian architecture"
@@ -83,29 +83,29 @@ export default function Login() {
             </div>
 
             {/* ── RIGHT PANEL — Login Form ── */}
-            <div className="flex-1 flex flex-col items-center justify-center px-8 relative">
+            <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-8 py-10 sm:py-12 relative min-h-screen">
                 {/* Subtle mandala watermark */}
-                <MandalaDecor className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] text-white/[0.03] pointer-events-none select-none" />
+                <MandalaDecor className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[400px] h-[300px] sm:h-[400px] text-white/[0.03] pointer-events-none select-none" />
 
                 <div className="relative z-10 w-full max-w-[380px]">
                     {/* Back to Landing */}
                     <Link to="/"
-                        className="inline-flex items-center gap-1.5 text-[12px] text-white/25 hover:text-white/50 transition-colors mb-8 group">
+                        className="inline-flex items-center gap-1.5 text-[12px] text-white/25 hover:text-white/50 transition-colors mb-6 sm:mb-8 group">
                         <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         Back to Home
                     </Link>
 
                     {/* Top brand title */}
-                    <div className="mb-10">
-                        <h2 className="text-[2.8rem] text-white leading-none tracking-tight"
+                    <div className="mb-6 sm:mb-10">
+                        <h2 className="text-[2.4rem] sm:text-[2.8rem] text-white leading-none tracking-tight"
                             style={{ fontFamily: "'Instrument Serif', serif" }}>
                             Awaaz
                         </h2>
                     </div>
 
                     {/* Headline */}
-                    <div className="mb-10">
-                        <h1 className="text-[2rem] leading-tight text-white mb-2"
+                    <div className="mb-6 sm:mb-10">
+                        <h1 className="text-[1.8rem] sm:text-[2rem] leading-tight text-white mb-2"
                             style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>
                             Welcome back.
                         </h1>

@@ -127,7 +127,7 @@ export default function AdminBilling() {
                 </h1>
             </div>
 
-            <div className="mb-8 flex divide-x overflow-hidden rounded-xl border"
+            <div className="mb-6 sm:mb-8 grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x overflow-hidden rounded-xl border"
                 style={{ borderColor: "rgba(200,160,52,0.2)", background: "rgba(200,160,52,0.04)" }}>
                 {[
                     { label: "Collected revenue", value: currency.format(totalRevenue) },
@@ -135,11 +135,11 @@ export default function AdminBilling() {
                     { label: "Registered tenants", value: signupRows.length },
                     { label: showBillingRows ? "Paid invoices" : "Active tenants", value: showBillingRows ? paidInvoices : activeTenants },
                 ].map((metric, index) => (
-                    <div key={index} className="flex-1 px-6 py-5">
-                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.5rem,2.5vw,2.2rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                    <div key={index} className="px-4 sm:px-6 py-4 sm:py-5 min-w-0">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.3rem,2.5vw,2.2rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
                             {metric.value}
                         </div>
-                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>
+                        <div className="mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>
                             {metric.label}
                         </div>
                     </div>
@@ -147,88 +147,92 @@ export default function AdminBilling() {
             </div>
 
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
-                <div className="px-6 py-5 border-b" style={{ background: T.surface, borderColor: T.border }}>
+                <div className="px-5 sm:px-6 py-4 sm:py-5 border-b" style={{ background: T.surface, borderColor: T.border }}>
                     <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>
                         {showBillingRows ? "Transactions" : "Registered businesses"}
                     </div>
-                    <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>
+                    <div className="text-[11px] sm:text-[12px] mt-0.5" style={{ color: T.muted }}>
                         {showBillingRows
                             ? "Live billing records from signed-up tenants"
                             : "Showing only businesses that have signed up on the platform"}
                     </div>
                 </div>
 
-                {showBillingRows ? (
-                    <>
-                        <div className="grid px-5 py-2.5 border-b text-[10px] uppercase tracking-[0.18em]"
-                            style={{ gridTemplateColumns: "1.4fr 1.4fr 90px 110px 100px 80px", background: "#0a0a0a", borderColor: T.border, color: T.muted }}>
-                            <span>Owner</span>
-                            <span>Business</span>
-                            <span>Plan</span>
-                            <span>Amount</span>
-                            <span>Date</span>
-                            <span>Status</span>
-                        </div>
-                        {billingRows.map((row, idx) => (
-                            <div key={row.id} className="grid px-5 py-4 border-b last:border-0"
-                                style={{ gridTemplateColumns: "1.4fr 1.4fr 90px 110px 100px 80px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
-                                <div className="text-[14px] font-medium self-center" style={{ color: T.text }}>{row.ownerName}</div>
-                                <div className="text-[13px] self-center" style={{ color: T.text }}>{row.businessName}</div>
-                                <div className="text-[13px] self-center capitalize" style={{ color: T.muted }}>{row.plan}</div>
-                                <div className="text-[14px] font-semibold self-center tabular-nums" style={{ color: T.text }}>
-                                    {currency.format(Number(row.amount_inr || 0))}
+                <div className="overflow-x-auto w-full">
+                    <div className="min-w-[660px]">
+                        {showBillingRows ? (
+                            <>
+                                <div className="grid px-5 py-2.5 border-b text-[10px] uppercase tracking-[0.18em]"
+                                    style={{ gridTemplateColumns: "1.4fr 1.4fr 90px 110px 100px 80px", background: "#0a0a0a", borderColor: T.border, color: T.muted }}>
+                                    <span>Owner</span>
+                                    <span>Business</span>
+                                    <span>Plan</span>
+                                    <span>Amount</span>
+                                    <span>Date</span>
+                                    <span>Status</span>
                                 </div>
-                                <div className="text-[13px] self-center" style={{ color: T.muted }}>
-                                    {row.created_at ? format(new Date(row.created_at), "MMM d") : "-"}
-                                </div>
-                                <div className="self-center">
-                                    <span className="text-[11px] font-medium px-2 py-1 rounded-md"
-                                        style={{
-                                            color: row.status === "paid" ? T.ok : T.terra,
-                                            background: row.status === "paid" ? "rgba(74,170,120,0.09)" : T.terraBg,
-                                        }}>
-                                        {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
-                                    </span>
-                                </div>
+                                {billingRows.map((row, idx) => (
+                                    <div key={row.id} className="grid px-5 py-4 border-b last:border-0"
+                                        style={{ gridTemplateColumns: "1.4fr 1.4fr 90px 110px 100px 80px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                                        <div className="text-[14px] font-medium self-center" style={{ color: T.text }}>{row.ownerName}</div>
+                                        <div className="text-[13px] self-center" style={{ color: T.text }}>{row.businessName}</div>
+                                        <div className="text-[13px] self-center capitalize" style={{ color: T.muted }}>{row.plan}</div>
+                                        <div className="text-[14px] font-semibold self-center tabular-nums" style={{ color: T.text }}>
+                                            {currency.format(Number(row.amount_inr || 0))}
+                                        </div>
+                                        <div className="text-[13px] self-center" style={{ color: T.muted }}>
+                                            {row.created_at ? format(new Date(row.created_at), "MMM d") : "-"}
+                                        </div>
+                                        <div className="self-center">
+                                            <span className="text-[11px] font-medium px-2 py-1 rounded-md"
+                                                style={{
+                                                    color: row.status === "paid" ? T.ok : T.terra,
+                                                    background: row.status === "paid" ? "rgba(74,170,120,0.09)" : T.terraBg,
+                                                }}>
+                                                {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        ) : signupRows.length === 0 ? (
+                            <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
+                                <p className="text-[14px]" style={{ color: T.muted }}>No signed-up tenants found yet.</p>
                             </div>
-                        ))}
-                    </>
-                ) : signupRows.length === 0 ? (
-                    <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
-                        <p className="text-[14px]" style={{ color: T.muted }}>No signed-up tenants found yet.</p>
+                        ) : (
+                            <>
+                                <div className="grid px-5 py-2.5 border-b text-[10px] uppercase tracking-[0.18em]"
+                                    style={{ gridTemplateColumns: "1.4fr 1.4fr 100px 110px 90px", background: "#0a0a0a", borderColor: T.border, color: T.muted }}>
+                                    <span>Owner</span>
+                                    <span>Business</span>
+                                    <span>Plan</span>
+                                    <span>Joined</span>
+                                    <span>Status</span>
+                                </div>
+                                {signupRows.map((row, idx) => (
+                                    <div key={row.id} className="grid px-5 py-4 border-b last:border-0"
+                                        style={{ gridTemplateColumns: "1.4fr 1.4fr 100px 110px 90px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                                        <div className="text-[14px] font-medium self-center" style={{ color: T.text }}>{row.ownerName}</div>
+                                        <div className="text-[13px] self-center" style={{ color: T.text }}>{row.businessName}</div>
+                                        <div className="text-[13px] self-center capitalize" style={{ color: T.muted }}>{row.plan}</div>
+                                        <div className="text-[13px] self-center" style={{ color: T.muted }}>
+                                            {row.createdAt ? format(new Date(row.createdAt), "MMM d, yyyy") : "-"}
+                                        </div>
+                                        <div className="self-center">
+                                            <span className="text-[11px] font-medium px-2 py-1 rounded-md"
+                                                style={{
+                                                    color: row.isActive ? T.ok : T.terra,
+                                                    background: row.isActive ? "rgba(74,170,120,0.09)" : T.terraBg,
+                                                }}>
+                                                {row.isActive ? "Active" : "Pending"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
-                ) : (
-                    <>
-                        <div className="grid px-5 py-2.5 border-b text-[10px] uppercase tracking-[0.18em]"
-                            style={{ gridTemplateColumns: "1.4fr 1.4fr 100px 110px 90px", background: "#0a0a0a", borderColor: T.border, color: T.muted }}>
-                            <span>Owner</span>
-                            <span>Business</span>
-                            <span>Plan</span>
-                            <span>Joined</span>
-                            <span>Status</span>
-                        </div>
-                        {signupRows.map((row, idx) => (
-                            <div key={row.id} className="grid px-5 py-4 border-b last:border-0"
-                                style={{ gridTemplateColumns: "1.4fr 1.4fr 100px 110px 90px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
-                                <div className="text-[14px] font-medium self-center" style={{ color: T.text }}>{row.ownerName}</div>
-                                <div className="text-[13px] self-center" style={{ color: T.text }}>{row.businessName}</div>
-                                <div className="text-[13px] self-center capitalize" style={{ color: T.muted }}>{row.plan}</div>
-                                <div className="text-[13px] self-center" style={{ color: T.muted }}>
-                                    {row.createdAt ? format(new Date(row.createdAt), "MMM d, yyyy") : "-"}
-                                </div>
-                                <div className="self-center">
-                                    <span className="text-[11px] font-medium px-2 py-1 rounded-md"
-                                        style={{
-                                            color: row.isActive ? T.ok : T.terra,
-                                            background: row.isActive ? "rgba(74,170,120,0.09)" : T.terraBg,
-                                        }}>
-                                        {row.isActive ? "Active" : "Pending"}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </>
-                )}
+                </div>
             </div>
         </div>
     )

@@ -33,22 +33,22 @@ function ServiceRow({ name, desc, icon: Icon, lat, up }: ServiceRowProps) {
     const width = `${up}%`
     const barColor = up >= 99.5 ? "#4aaa78" : up >= 98 ? "#c8a034" : "#b85c35"
     return (
-        <div className="py-4 border-b last:border-0" style={{ borderColor: T.border }}>
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center border" style={{ borderColor: T.border }}>
+        <div className="py-3.5 sm:py-4 border-b last:border-0" style={{ borderColor: T.border }}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0" style={{ borderColor: T.border }}>
                         <Icon className="w-3.5 h-3.5" style={{ color: barColor }} />
                     </div>
-                    <div>
-                        <div className="text-[14px] font-medium" style={{ color: T.text }}>{name}</div>
-                        <div className="text-[11px]" style={{ color: T.muted }}>{desc}</div>
+                    <div className="min-w-0">
+                        <div className="text-[13px] sm:text-[14px] font-medium truncate" style={{ color: T.text }}>{name}</div>
+                        <div className="text-[10px] sm:text-[11px] truncate" style={{ color: T.muted }}>{desc}</div>
                     </div>
                 </div>
-                <div className="text-right">
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: barColor, background: barColor === "#4aaa78" ? "rgba(74,170,120,0.09)" : barColor === "#c8a034" ? T.goldBg : T.terraBg }}>
+                <div className="text-right shrink-0">
+                    <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: barColor, background: barColor === "#4aaa78" ? "rgba(74,170,120,0.09)" : barColor === "#c8a034" ? T.goldBg : T.terraBg }}>
                         {up}%
                     </span>
-                    <div className="text-[11px] font-mono mt-1" style={{ color: T.muted }}>{lat}</div>
+                    <div className="text-[10px] sm:text-[11px] font-mono mt-0.5 sm:mt-1" style={{ color: T.muted }}>{lat}</div>
                 </div>
             </div>
             <div className="flex gap-0.5 h-1 rounded-full overflow-hidden" style={{ background: "rgba(232,228,221,0.06)" }}>
@@ -61,23 +61,23 @@ function ServiceRow({ name, desc, icon: Icon, lat, up }: ServiceRowProps) {
 export default function AdminHealth() {
     return (
         <div style={{ fontFamily: I }}>
-            <div className="mb-8">
+            <div className="mb-6 sm:mb-8">
                 <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Admin console</p>
                 <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
                     System health
                 </h1>
-                <p className="text-[14px] mt-1" style={{ color: T.muted }}>Real-time infrastructure monitoring.</p>
+                <p className="text-[13px] sm:text-[14px] mt-1" style={{ color: T.muted }}>Real-time infrastructure monitoring.</p>
             </div>
 
             {/* Overall banner */}
-            <div className="flex items-center gap-4 px-5 py-4 rounded-xl border mb-8"
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 rounded-xl border mb-6 sm:mb-8"
                 style={{ background: "rgba(74,170,120,0.05)", borderColor: "rgba(74,170,120,0.2)" }}>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <div>
-                    <span className="text-[15px] font-semibold" style={{ color: T.text }}>All systems operational</span>
-                    <span className="text-[12px] ml-3" style={{ color: T.muted }}>No incidents in last 24h</span>
+                <div className="flex items-center gap-3">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="text-[14px] sm:text-[15px] font-semibold" style={{ color: T.text }}>All systems operational</span>
+                    <span className="text-[11px] sm:text-[12px]" style={{ color: T.muted }}>No incidents</span>
                 </div>
-                <div className="ml-auto flex items-center gap-1.5 text-[12px]" style={{ color: T.muted }}>
+                <div className="flex items-center gap-1.5 text-[11px] sm:text-[12px] self-start sm:self-auto" style={{ color: T.muted }}>
                     <Clock className="w-3.5 h-3.5" />
                     Updated just now
                 </div>
@@ -85,21 +85,21 @@ export default function AdminHealth() {
 
             <div className="grid md:grid-cols-2 gap-6">
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                    <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
+                    <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Core infrastructure</div>
-                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Database, auth, and realtime</div>
+                        <div className="text-[11px] sm:text-[12px] mt-0.5" style={{ color: T.muted }}>Database, auth, and realtime</div>
                     </div>
-                    <div className="px-6">
+                    <div className="px-4 sm:px-6">
                         {SERVICES.map(s => <ServiceRow key={s.name} {...s} />)}
                     </div>
                 </div>
 
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                    <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
+                    <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b" style={{ borderColor: T.border }}>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>AI providers</div>
-                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>LLM, TTS, and STT services</div>
+                        <div className="text-[11px] sm:text-[12px] mt-0.5" style={{ color: T.muted }}>LLM, TTS, and STT services</div>
                     </div>
-                    <div className="px-6">
+                    <div className="px-4 sm:px-6">
                         {PROVIDERS.map(s => <ServiceRow key={s.name} {...s} />)}
                     </div>
                 </div>

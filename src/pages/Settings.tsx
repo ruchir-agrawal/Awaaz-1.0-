@@ -281,10 +281,10 @@ export default function Settings() {
                 </h1>
             </div>
 
-            <div className="flex gap-0 border-b mb-8" style={{ borderColor: T.border }}>
+            <div className="flex overflow-x-auto no-scrollbar gap-0 border-b mb-6 sm:mb-8" style={{ borderColor: T.border }}>
                 {tabs.map(t => (
                     <button key={t.id} onClick={() => setTab(t.id)}
-                        className={cn("flex items-center gap-2 px-5 py-3 text-[13px] font-medium border-b-2 -mb-px transition-all")}
+                        className={cn("flex items-center gap-2 px-4 sm:px-5 py-3 text-[13px] font-medium border-b-2 -mb-px transition-all whitespace-nowrap shrink-0")}
                         style={{ borderColor: tab === t.id ? T.gold : "transparent", color: tab === t.id ? T.text : T.muted, fontFamily: I }}>
                         <t.icon className="w-3.5 h-3.5 opacity-70" />
                         {t.label}
@@ -308,7 +308,7 @@ export default function Settings() {
                                 placeholder="my-clinic" className={cn(inputCls, "opacity-60 cursor-not-allowed")}
                                 style={{ borderColor: T.border, color: T.text }} />
                         </Field>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field label="Industry">
                                 <input value={form.industry} onChange={e => up("industry", e.target.value)}
                                     placeholder="Healthcare" className={inputCls}
@@ -384,19 +384,19 @@ export default function Settings() {
 
                 {tab === "connect" && (
                     <div className="max-w-3xl space-y-6">
-                        <div className="rounded-2xl border p-6 space-y-5" style={{ background: T.surface, borderColor: T.border }}>
-                            <div className="flex items-start justify-between gap-4">
+                        <div className="rounded-2xl border p-4 sm:p-6 space-y-5" style={{ background: T.surface, borderColor: T.border }}>
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                                 <div>
                                     <p className="text-[11px] uppercase tracking-[0.18em] mb-2" style={{ color: T.muted }}>Cal.com</p>
-                                    <h2 className="text-[1.4rem]" style={{ fontFamily: D, color: T.text }}>
+                                    <h2 className="text-[1.3rem] sm:text-[1.4rem]" style={{ fontFamily: D, color: T.text }}>
                                         Shared calendar
                                     </h2>
-                                    <p className="text-[13px] mt-2 leading-relaxed" style={{ color: T.muted }}>
+                                    <p className="text-[12px] sm:text-[13px] mt-2 leading-relaxed" style={{ color: T.muted }}>
                                         Awaaz is currently using one shared Cal.com admin account for scheduling. Every appointment is booked into the central calendar configured on the server.
                                     </p>
                                 </div>
                                 <div
-                                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px]"
+                                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] sm:text-[12px] self-start shrink-0"
                                     style={{
                                         color: T.gold,
                                         background: T.goldBg,
@@ -408,7 +408,7 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border px-4 py-4 text-[13px] leading-relaxed" style={{ borderColor: T.border, color: T.muted }}>
+                            <div className="rounded-xl border px-4 py-4 text-[12px] sm:text-[13px] leading-relaxed" style={{ borderColor: T.border, color: T.muted }}>
                                 This temporary setup uses the admin Cal.com API key and a single shared event type. Business owners can already isolate their call records in a dedicated Google Sheet, and that data layer will keep working when per-owner calendars are enabled later.
                             </div>
 
@@ -418,19 +418,19 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border p-6 space-y-5" style={{ background: T.surface, borderColor: T.border }}>
-                            <div className="flex items-start justify-between gap-4">
+                        <div className="rounded-2xl border p-4 sm:p-6 space-y-5" style={{ background: T.surface, borderColor: T.border }}>
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                                 <div>
                                     <p className="text-[11px] uppercase tracking-[0.18em] mb-2" style={{ color: T.muted }}>Data Sync</p>
-                                    <h2 className="text-[1.4rem]" style={{ fontFamily: D, color: T.text }}>
+                                    <h2 className="text-[1.3rem] sm:text-[1.4rem]" style={{ fontFamily: D, color: T.text }}>
                                         Business sheet
                                     </h2>
-                                    <p className="text-[13px] mt-2 leading-relaxed" style={{ color: T.muted }}>
+                                    <p className="text-[12px] sm:text-[13px] mt-2 leading-relaxed" style={{ color: T.muted }}>
                                         Calls, transcripts, recording links, and appointment outcomes can be written to a dedicated Google Sheet for this business only.
                                     </p>
                                 </div>
                                 <div
-                                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px]"
+                                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] sm:text-[12px] self-start shrink-0"
                                     style={{
                                         color: hasDedicatedSheet ? T.gold : T.muted,
                                         background: hasDedicatedSheet ? T.goldBg : "rgba(232,228,221,0.04)",

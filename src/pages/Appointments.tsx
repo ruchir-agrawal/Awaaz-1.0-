@@ -99,7 +99,7 @@ export default function Appointments() {
             </div>
 
             {/* Summary strip */}
-            <div className="flex divide-x rounded-xl border mb-8 overflow-hidden"
+            <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x rounded-xl border mb-6 sm:mb-8 overflow-hidden"
                 style={{ borderColor: T.border, background: T.surface }}>
                 {[
                     { label: "Today", value: todayCount },
@@ -107,11 +107,11 @@ export default function Appointments() {
                     { label: "Upcoming", value: upcomingCount },
                     { label: "Total", value: appointments.length },
                 ].map((s, i) => (
-                    <div key={i} className="flex-1 px-6 py-5">
-                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "2rem", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                    <div key={i} className="px-4 sm:px-6 py-4 sm:py-5 min-w-0">
+                        <div style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.5rem, 2.5vw, 2rem)", color: T.text, letterSpacing: "-0.04em", lineHeight: 1 }}>
                             {s.value}
                         </div>
-                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{s.label}</div>
+                        <div className="mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>{s.label}</div>
                     </div>
                 ))}
             </div>
@@ -135,63 +135,67 @@ export default function Appointments() {
             {view === "calendar" ? (
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_380px] gap-6">
                     <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
+                        <div className="px-4 sm:px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
                             <div style={{ fontFamily: D, fontWeight: 600, color: T.text }}>{format(monthCursor, "MMMM yyyy")}</div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 sm:gap-2">
                                 <button type="button" onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
-                                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                                    className="w-8 sm:w-9 h-8 sm:h-9 rounded-lg flex items-center justify-center transition-all"
                                     style={{ border: `1px solid ${T.border}`, color: T.muted }}>
                                     <ChevronLeft className="w-4 h-4" />
                                 </button>
                                 <button type="button" onClick={() => { setMonthCursor(new Date()); setSelectedDate(new Date()) }}
-                                    className="px-3 py-2 rounded-lg text-[12px] transition-all"
+                                    className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-[12px] transition-all"
                                     style={{ border: `1px solid ${T.border}`, color: T.muted }}>
                                     Today
                                 </button>
                                 <button type="button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
-                                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                                    className="w-8 sm:w-9 h-8 sm:h-9 rounded-lg flex items-center justify-center transition-all"
                                     style={{ border: `1px solid ${T.border}`, color: T.muted }}>
                                     <ChevronRight className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
-                        <div className="grid grid-cols-7 border-b" style={{ borderColor: T.border }}>
-                            {DAYS.map(d => (
-                                <div key={d} className="py-3 text-center text-[10px] uppercase tracking-wider border-r last:border-0"
-                                    style={{ borderColor: T.border, color: T.muted }}>{d}</div>
-                            ))}
-                        </div>
-                        <div className="grid grid-cols-7">
-                            {calendarDays.map(day => {
-                                const dayAppointments = filtered.filter(a => isSameDay(parseISO(a.appointment_date), day))
-                                const inCurrentMonth = isSameMonth(day, monthCursor)
-                                const dayIsToday = isToday(day)
-                                const isSelected = isSameDay(day, selectedDate)
-                                return (
-                                    <button key={day.toISOString()} type="button" onClick={() => setSelectedDate(day)}
-                                        className="min-h-[110px] p-2 border-r border-b last:border-r-0 text-left transition-all"
-                                        style={{
-                                            borderColor: T.border,
-                                            background: isSelected ? "rgba(200,160,52,0.08)" : dayIsToday ? "rgba(232,228,221,0.02)" : undefined,
-                                            opacity: inCurrentMonth ? 1 : 0.42,
-                                        }}>
-                                        <span className={cn("text-[12px] font-medium w-7 h-7 flex items-center justify-center rounded-full mb-2")}
-                                            style={{ background: isSelected || dayIsToday ? T.gold : "transparent", color: isSelected || dayIsToday ? "#000" : T.muted }}>
-                                            {format(day, "d")}
-                                        </span>
-                                        <div className="space-y-1">
-                                            {dayAppointments.slice(0, 2).map(a => (
-                                                <div key={a.id} className="text-[10px] px-2 py-1 rounded truncate"
-                                                    style={{ background: a.call_id ? T.goldBg : T.blueBg, color: a.call_id ? T.gold : T.blue }}>
-                                                    {a.appointment_time.slice(0, 5)} {a.customer_name}
+                        <div className="overflow-x-auto w-full">
+                            <div className="min-w-[480px]">
+                                <div className="grid grid-cols-7 border-b" style={{ borderColor: T.border }}>
+                                    {DAYS.map(d => (
+                                        <div key={d} className="py-2.5 sm:py-3 text-center text-[9px] sm:text-[10px] uppercase tracking-wider border-r last:border-0"
+                                            style={{ borderColor: T.border, color: T.muted }}>{d}</div>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-7">
+                                    {calendarDays.map(day => {
+                                        const dayAppointments = filtered.filter(a => isSameDay(parseISO(a.appointment_date), day))
+                                        const inCurrentMonth = isSameMonth(day, monthCursor)
+                                        const dayIsToday = isToday(day)
+                                        const isSelected = isSameDay(day, selectedDate)
+                                        return (
+                                            <button key={day.toISOString()} type="button" onClick={() => setSelectedDate(day)}
+                                                className="min-h-[85px] sm:min-h-[110px] p-1.5 sm:p-2 border-r border-b last:border-r-0 text-left transition-all"
+                                                style={{
+                                                    borderColor: T.border,
+                                                    background: isSelected ? "rgba(200,160,52,0.08)" : dayIsToday ? "rgba(232,228,221,0.02)" : undefined,
+                                                    opacity: inCurrentMonth ? 1 : 0.42,
+                                                }}>
+                                                <span className={cn("text-[11px] sm:text-[12px] font-medium w-6 sm:w-7 h-6 sm:h-7 flex items-center justify-center rounded-full mb-1 sm:mb-2")}
+                                                    style={{ background: isSelected || dayIsToday ? T.gold : "transparent", color: isSelected || dayIsToday ? "#000" : T.muted }}>
+                                                    {format(day, "d")}
+                                                </span>
+                                                <div className="space-y-1">
+                                                    {dayAppointments.slice(0, 2).map(a => (
+                                                        <div key={a.id} className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded truncate"
+                                                            style={{ background: a.call_id ? T.goldBg : T.blueBg, color: a.call_id ? T.gold : T.blue }}>
+                                                            {a.appointment_time.slice(0, 5)} {a.customer_name}
+                                                        </div>
+                                                    ))}
+                                                    {dayAppointments.length > 2 ? <div className="text-[9px] sm:text-[10px]" style={{ color: T.muted }}>+{dayAppointments.length - 2} more</div> : null}
+                                                    {dayAppointments.length === 0 ? <div className="text-[9px] sm:text-[10px]" style={{ color: "rgba(232,228,221,0.18)" }}>No bookings</div> : null}
                                                 </div>
-                                            ))}
-                                            {dayAppointments.length > 2 ? <div className="text-[10px]" style={{ color: T.muted }}>+{dayAppointments.length - 2} more</div> : null}
-                                            {dayAppointments.length === 0 ? <div className="text-[10px]" style={{ color: "rgba(232,228,221,0.18)" }}>No bookings</div> : null}
-                                        </div>
-                                    </button>
-                                )
-                            })}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div className="rounded-xl border overflow-hidden h-fit" style={{ borderColor: T.border, background: T.surface }}>
@@ -239,57 +243,61 @@ export default function Appointments() {
                 </div>
             ) : (
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border }}>
-                    <div className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
-                        style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: T.surface, borderColor: T.border, color: T.muted }}>
-                        <span>Customer</span><span>Date</span><span>Time</span><span>Source</span><span>Status</span><span>Update</span>
-                    </div>
-                    {filtered.length === 0 ? (
-                        <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
-                            <p className="text-[14px]" style={{ color: T.muted }}>No appointments.</p>
-                        </div>
-                    ) : filtered.map((apt, idx) => {
-                        const ss = STATUS[apt.status]
-                        const source = getAppointmentSource(apt)
-                        const SourceIcon = source.icon
-                        return (
-                            <div key={apt.id}
-                                className="grid px-5 py-4 border-b"
-                                style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
-                                <div>
-                                    <div className="text-[14px] font-medium" style={{ color: T.text }}>{apt.customer_name}</div>
-                                    <div className="text-[12px]" style={{ color: T.muted }}>{apt.customer_phone}</div>
-                                    {apt.reason ? <div className="text-[11px] mt-1" style={{ color: "rgba(232,228,221,0.28)" }}>{apt.reason}</div> : null}
-                                </div>
-                                <div className="text-[13px] self-center" style={{ color: T.muted }}>
-                                    {format(parseISO(apt.appointment_date), "MMM d")}
-                                </div>
-                                <div className="text-[13px] font-mono self-center" style={{ color: T.muted }}>
-                                    {apt.appointment_time.slice(0, 5)}
-                                </div>
-                                <div className="self-center">
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md"
-                                        style={{ color: source.color, background: source.bg }}>
-                                        <SourceIcon className="w-3 h-3" />
-                                        {source.label}
-                                    </span>
-                                </div>
-                                <div className="self-center">
-                                    <span className="text-[11px] font-medium px-2 py-1 rounded-md"
-                                        style={{ color: ss.color, background: ss.bg }}>{ss.label}</span>
-                                </div>
-                                <div className="self-center">
-                                    <div className="relative inline-flex items-center">
-                                        <select onChange={e => update(apt.id, e.target.value)} value={apt.status}
-                                            className="appearance-none bg-transparent border rounded-lg pl-3 pr-7 py-1.5 text-[12px] outline-none cursor-pointer transition-all focus:border-[rgba(200,160,52,0.3)]"
-                                            style={{ borderColor: T.border, color: T.muted, fontFamily: I }}>
-                                            {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k} style={{ background: "#111" }}>{v.label}</option>)}
-                                        </select>
-                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: T.muted }} />
-                                    </div>
-                                </div>
+                    <div className="overflow-x-auto w-full">
+                        <div className="min-w-[660px]">
+                            <div className="grid text-[10px] uppercase tracking-[0.18em] px-5 py-3 border-b"
+                                style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: T.surface, borderColor: T.border, color: T.muted }}>
+                                <span>Customer</span><span>Date</span><span>Time</span><span>Source</span><span>Status</span><span>Update</span>
                             </div>
-                        )
-                    })}
+                            {filtered.length === 0 ? (
+                                <div className="py-20 text-center" style={{ background: "#0a0a0a" }}>
+                                    <p className="text-[14px]" style={{ color: T.muted }}>No appointments.</p>
+                                </div>
+                            ) : filtered.map((apt, idx) => {
+                                const ss = STATUS[apt.status]
+                                const source = getAppointmentSource(apt)
+                                const SourceIcon = source.icon
+                                return (
+                                    <div key={apt.id}
+                                        className="grid px-5 py-4 border-b"
+                                        style={{ gridTemplateColumns: "1.1fr 90px 70px 120px 150px 140px", background: idx % 2 === 0 ? "#0a0a0a" : "#090909", borderColor: T.border }}>
+                                        <div>
+                                            <div className="text-[14px] font-medium" style={{ color: T.text }}>{apt.customer_name}</div>
+                                            <div className="text-[12px]" style={{ color: T.muted }}>{apt.customer_phone}</div>
+                                            {apt.reason ? <div className="text-[11px] mt-1" style={{ color: "rgba(232,228,221,0.28)" }}>{apt.reason}</div> : null}
+                                        </div>
+                                        <div className="text-[13px] self-center" style={{ color: T.muted }}>
+                                            {format(parseISO(apt.appointment_date), "MMM d")}
+                                        </div>
+                                        <div className="text-[13px] font-mono self-center" style={{ color: T.muted }}>
+                                            {apt.appointment_time.slice(0, 5)}
+                                        </div>
+                                        <div className="self-center">
+                                            <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md"
+                                                style={{ color: source.color, background: source.bg }}>
+                                                <SourceIcon className="w-3 h-3" />
+                                                {source.label}
+                                            </span>
+                                        </div>
+                                        <div className="self-center">
+                                            <span className="text-[11px] font-medium px-2 py-1 rounded-md"
+                                                style={{ color: ss.color, background: ss.bg }}>{ss.label}</span>
+                                        </div>
+                                        <div className="self-center">
+                                            <div className="relative inline-flex items-center">
+                                                <select onChange={e => update(apt.id, e.target.value)} value={apt.status}
+                                                    className="appearance-none bg-transparent border rounded-lg pl-3 pr-7 py-1.5 text-[12px] outline-none cursor-pointer transition-all focus:border-[rgba(200,160,52,0.3)]"
+                                                    style={{ borderColor: T.border, color: T.muted, fontFamily: I }}>
+                                                    {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k} style={{ background: "#111" }}>{v.label}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: T.muted }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

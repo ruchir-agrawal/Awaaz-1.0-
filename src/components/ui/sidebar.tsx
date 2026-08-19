@@ -82,6 +82,7 @@ type PortalSidebarProps = {
   accountEmail: string
   accountInitials: string
   onSignOut: () => void
+  onNavigate?: () => void
   bottomActionLabel?: string
   bottomActionTo?: string
   accent?: "admin" | "owner"
@@ -123,6 +124,7 @@ export function SessionNavBar({
   accountEmail,
   accountInitials,
   onSignOut,
+  onNavigate,
   bottomActionLabel,
   bottomActionTo,
   accent = "owner",
@@ -133,7 +135,6 @@ export function SessionNavBar({
   const [isCollapsed, setIsCollapsed] = useState(collapsedByDefault)
   const navigate = useNavigate()
   const accentClasses = getAccentClasses(accent)
-
 
   const accountItems = useMemo<SidebarMenuItem[]>(() => {
     return accent === "admin"
@@ -149,6 +150,7 @@ export function SessionNavBar({
   }, [accent, onSignOut])
 
   const handleBottomSignOut = async () => {
+    onNavigate?.()
     await onSignOut()
     navigate("/login")
   }
@@ -211,6 +213,7 @@ export function SessionNavBar({
                             {index === 0 ? null : undefined}
                             <Link
                               to={item.to}
+                              onClick={() => onNavigate?.()}
                               className={cn(
                                 "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-[rgba(232,228,221,0.05)] hover:text-[#f7f3ee]",
                                 active && accentClasses.active,
@@ -244,6 +247,7 @@ export function SessionNavBar({
                 {bottomActionLabel && bottomActionTo ? (
                   <Link
                     to={bottomActionTo}
+                    onClick={() => onNavigate?.()}
                     className="flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 text-[rgba(232,228,221,0.78)] transition hover:bg-[rgba(232,228,221,0.05)] hover:text-[#f7f3ee]"
                   >
                     <Settings className="h-4 w-4 shrink-0 text-[rgba(232,228,221,0.72)]" />
@@ -315,12 +319,15 @@ export function SessionNavBar({
                       {accountItems.map((item) => (
                         <DropdownMenuItem
                           key={item.label}
-                          onSelect={item.onSelect}
+                          onSelect={() => {
+                            onNavigate?.()
+                            item.onSelect?.()
+                          }}
                           asChild={Boolean(item.to)}
                           className="flex items-center gap-2"
                         >
                           {item.to ? (
-                            <Link to={item.to}>
+                            <Link to={item.to} onClick={() => onNavigate?.()}>
                               <item.icon className="h-4 w-4" /> {item.label}
                             </Link>
                           ) : (

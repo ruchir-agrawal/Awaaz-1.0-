@@ -91,31 +91,31 @@ export default function Dashboard() {
 
     return (
         <div style={{ fontFamily: I }}>
-            <div className="mb-8 flex items-start justify-between gap-4">
+            <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
                     <p className="text-[11px] uppercase tracking-[0.2em] mb-2" style={{ color: T.muted }}>Owner dashboard</p>
                     <h1 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
                         {business.name}
                     </h1>
                 </div>
-                <div className="flex items-center gap-2 mt-2 shrink-0">
+                <div className="flex items-center gap-2 mt-1 sm:mt-2 shrink-0">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="text-[12px]" style={{ color: T.ok, fontFamily: I }}>
                         {business.is_active ? "Live" : "Offline"}
-                        {activeCalls.length > 0 && ` Â· ${activeCalls.length} active`}
+                        {activeCalls.length > 0 && ` · ${activeCalls.length} active`}
                     </span>
                 </div>
             </div>
 
             {showOnboarding && (
-                <div className="mb-8 rounded-xl border p-6" style={{ background: T.surface, borderColor: T.border }}>
+                <div className="mb-8 rounded-xl border p-4 sm:p-6" style={{ background: T.surface, borderColor: T.border }}>
                     <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
                         <div>
                             <p className="mb-2 text-[11px] uppercase tracking-[0.18em]" style={{ color: T.muted }}>Getting started</p>
-                            <h2 style={{ fontFamily: D, fontWeight: 700, fontSize: "1.35rem", color: T.text, letterSpacing: "-0.03em" }}>
+                            <h2 style={{ fontFamily: D, fontWeight: 700, fontSize: "clamp(1.2rem, 2.5vw, 1.35rem)", color: T.text, letterSpacing: "-0.03em" }}>
                                 Set up your business in 3 quick steps
                             </h2>
-                            <p className="mt-2 max-w-2xl text-[13px]" style={{ color: T.muted }}>
+                            <p className="mt-2 max-w-2xl text-[12px] sm:text-[13px]" style={{ color: T.muted }}>
                                 Complete these details once so the admin team can review your business and activate your account.
                             </p>
                         </div>
@@ -129,55 +129,54 @@ export default function Dashboard() {
                         </Link>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                         {onboardingSteps.map((step) => (
                             <div key={step.title} className="rounded-xl border p-4" style={{ background: "#0a0a0a", borderColor: T.border }}>
                                 <step.icon className="mb-3 h-4 w-4" style={{ color: T.gold }} />
-                                <div className="mb-1 text-[14px] font-semibold" style={{ color: T.text }}>{step.title}</div>
-                                <p className="text-[12px] leading-relaxed" style={{ color: T.muted }}>{step.body}</p>
+                                <div className="mb-1 text-[13px] sm:text-[14px] font-semibold" style={{ color: T.text }}>{step.title}</div>
+                                <p className="text-[11px] sm:text-[12px] leading-relaxed" style={{ color: T.muted }}>{step.body}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
 
-            <div className="flex divide-x mb-10 overflow-hidden rounded-xl border"
+            <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x mb-8 sm:mb-10 overflow-hidden rounded-xl border"
                 style={{ borderColor: T.border, background: T.surface }}>
                 {metrics.map((m, i) => (
-                    <div key={i} className="flex-1 px-6 py-6 min-w-0">
+                    <div key={i} className="px-4 sm:px-6 py-4 sm:py-6 min-w-0">
                         <div style={{
                             fontFamily: D, fontWeight: 700, color: T.text,
-                            fontSize: "clamp(1.8rem, 3.5vw, 3rem)",
+                            fontSize: "clamp(1.5rem, 3vw, 2.8rem)",
                             letterSpacing: "-0.04em", lineHeight: 1
                         }}>
                             {m.value}
                         </div>
-                        <div className="mt-2 text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>
+                        <div className="mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.15em]" style={{ color: T.muted }}>
                             {m.label}
                         </div>
                     </div>
                 ))}
             </div>
 
-
             {activeCalls.length > 0 && (
                 <div className="mb-8">
                     <p className="text-[11px] uppercase tracking-[0.15em] mb-3" style={{ color: T.muted }}>Active calls</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {activeCalls.map(call => (
-                            <div key={call.id} className="flex items-center justify-between px-5 py-4 rounded-xl border"
+                            <div key={call.id} className="flex items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 rounded-xl border"
                                 style={{ background: "rgba(200,160,52,0.05)", borderColor: "rgba(200,160,52,0.15)" }}>
                                 <div className="flex items-center gap-3">
-                                    <PhoneOutgoing className="w-4 h-4" style={{ color: T.gold }} />
-                                    <div>
-                                        <div className="text-[14px] font-medium" style={{ color: T.text }}>
+                                    <PhoneOutgoing className="w-4 h-4 shrink-0" style={{ color: T.gold }} />
+                                    <div className="min-w-0">
+                                        <div className="text-[13px] sm:text-[14px] font-medium truncate" style={{ color: T.text }}>
                                             {call.customer_phone?.replace(/(\d{4})$/, "XXXX") ?? "Unknown"}
                                         </div>
-                                        <div className="text-[11px] capitalize" style={{ color: T.gold }}>In progressâ€¦</div>
+                                        <div className="text-[10px] sm:text-[11px] capitalize" style={{ color: T.gold }}>In progress...</div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[15px] font-mono tabular-nums" style={{ color: T.muted }}>
+                                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                                    <span className="text-[13px] sm:text-[15px] font-mono tabular-nums" style={{ color: T.muted }}>
                                         {Math.floor((call.duration_seconds ?? 0) / 60)}:{((call.duration_seconds ?? 0) % 60).toString().padStart(2, "0")}
                                     </span>
                                     <button
@@ -195,17 +194,17 @@ export default function Dashboard() {
             )}
 
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: T.border, background: T.surface }}>
-                <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b" style={{ borderColor: T.border }}>
+                <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 flex items-center justify-between border-b" style={{ borderColor: T.border }}>
                     <div>
                         <div style={{ fontFamily: D, fontWeight: 600, fontSize: "1rem", color: T.text }}>Call volume</div>
-                        <div className="text-[12px] mt-0.5" style={{ color: T.muted }}>Last 14 days</div>
+                        <div className="text-[11px] sm:text-[12px] mt-0.5" style={{ color: T.muted }}>Last 14 days</div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-20 h-px" style={{ background: T.gold }} />
-                        <span className="text-[11px]" style={{ color: T.muted }}>Total calls</span>
+                        <div className="w-12 sm:w-20 h-px" style={{ background: T.gold }} />
+                        <span className="text-[10px] sm:text-[11px]" style={{ color: T.muted }}>Total calls</span>
                     </div>
                 </div>
-                <div className="px-2 pt-2 pb-4 h-[220px]">
+                <div className="px-2 pt-2 pb-4 h-[180px] sm:h-[220px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData} margin={{ top: 8, right: 16, left: -24, bottom: 0 }}>
                             <XAxis dataKey="d" axisLine={false} tickLine={false}
