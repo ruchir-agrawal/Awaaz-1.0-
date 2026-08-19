@@ -271,7 +271,7 @@ app.post("/api/voice/chat", async (req, res) => {
                         Authorization: `Bearer ${groqApiKey}`,
                     },
                     body: JSON.stringify({
-                        model: "llama-3.3-70b-versatile",
+                        model: "groq/compound-mini",
                         messages: formattedMessages,
                         temperature,
                         max_tokens: maxTokens,
@@ -1081,7 +1081,7 @@ async function callGroq(history) {
             Authorization: `Bearer ${groqApiKey}`,
         },
         body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "groq/compound-mini",
             messages: history,
             temperature: 0.45,
             max_tokens: 300,
