@@ -780,7 +780,10 @@ async function resolveBusiness(inboundNumber) {
         throw new Error(`Supabase business lookup failed: ${error.message}`);
     }
 
-    return (data || []).find((business) => normalizePhone(business.phone) === inboundNumber) || data?.[0] || null;
+    return (data || []).find((business) => 
+        normalizePhone(business.assigned_phone_number) === inboundNumber ||
+        normalizePhone(business.phone) === inboundNumber
+    ) || data?.[0] || null;
 }
 
 async function fetchBusinessByMappedValue(mappedValue) {
@@ -1699,11 +1702,16 @@ async function synthesizeSpeech(text, callSid, stepLabel) {
     return absoluteUrl(`/generated-audio/${fileName}`);
 }
 
-function absoluteUrl(routePath) {
-    if (!appBaseUrl) {
-        throw new Error("APP_BASE_URL must be set to your public ngrok or deployed URL.");
+function absoluteUrl(routePath, req) {
+    if (appBaseUrl) {
+        return `${appBaseUrl}${routePath.startsWith("/") ? routePath : `/${routePath}`}`;
     }
-    return `${appBaseUrl}${routePath.startsWith("/") ? routePath : `/${routePath}`}`;
+    if (req) {
+        const proto = req.header("x-forwarded-proto") || "https";
+        const host = req.header("x-forwarded-host") || req.header("host");
+        if (host) return `${proto}://${host}${routePath.startsWith("/") ? routePath : `/${routePath}`}`;
+    }
+    return `https://awaaz-1-0.onrender.com${routePath.startsWith("/") ? routePath : `/${routePath}`}`;
 }
 
 function optionalTwilioValidation(req, res, next) {
