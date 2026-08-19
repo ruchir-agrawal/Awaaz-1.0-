@@ -1740,8 +1740,12 @@ function optionalTwilioValidation(req, res, next) {
  */
 app.post("/api/webhooks/sarvam/tools", async (req, res) => {
     try {
-        const { tool, params = {}, business_id, slug, session_id } = req.body || {};
-        console.log(`[Sarvam Agent Tool Call] Tool: ${tool}, Business: ${business_id || slug}`, params);
+        const body = req.body || {};
+        const rawTool = body.tool || body.tool_name || body.name || body.action || req.query?.tool || req.headers["x-tool-name"] || "";
+        const params = body.params || body.parameters || body.data || body;
+        const { business_id, slug, session_id } = body;
+
+        console.log(`[Sarvam Agent Tool Call] Tool: ${rawTool || "(inferred)"}, Business: ${business_id || slug}`, params);
 
         // Resolve business record
         let business = null;
@@ -1763,7 +1767,18 @@ app.post("/api/webhooks/sarvam/tools", async (req, res) => {
         const bizName = business?.name || "Clinic";
         const ownerPhone = business?.whatsapp_notification_phone || business?.phone;
 
-        const normalizedTool = (tool || "").toLowerCase().replace(/[\s_-]+/g, "");
+        let normalizedTool = (rawTool || "").toLowerCase().replace(/[\s_-]+/g, "");
+
+        // Smart inference if tool name is omitted in Sarvam Body editor
+        if (!normalizedTool) {
+            if (params.patient_name || params.phone_number || params.appointment_datetime) {
+                normalizedTool = "bookappointment";
+            } else if (params.date || params.slot) {
+                normalizedTool = "checkavailability";
+            } else {
+                normalizedTool = "checkavailability";
+            }
+        }
 
         switch (normalizedTool) {
             case "bookappointment": {
